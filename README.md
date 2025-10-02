@@ -36,7 +36,7 @@ Abra o Prompt de Comando (cmd) ou PowerShell e execute os comandos abaixo, um po
 
 ```bash
 # 1. Clone (baixe) o projeto do GitHub
-git clone https://github.com/JonJonesBR/Conversor_TTS.git
+git clone https://github.com/JonJonesBR/MeuConversorTTS.git
 
 # 2. Entre na pasta do projeto que foi criada
 cd Conversor_TTS
