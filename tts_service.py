@@ -62,7 +62,7 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
 
 async def converter_chunk_tts(texto_chunk: str, voz: str, caminho_saida: str, indice: int, total: int) -> bool:
     """
-    Converte um único chunk de texto para áudio. Gerencia tentativas e erros.
+    Converte um único chunk de texto para áudio. Gere tentativas e erros.
     Retorna True em sucesso, False em falha.
     """
     path_saida_obj = Path(caminho_saida)
@@ -108,4 +108,3 @@ async def converter_chunk_tts(texto_chunk: str, voz: str, caminho_saida: str, in
             return False
             
     return False
-
