@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Módulo para gerenciar o arquivo de configurações (settings.ini).
-Lida com a leitura e escrita das preferências do usuário.
+Módulo para gerir o arquivo de configurações (settings.ini).
+Lida com a leitura e escrita das preferências do utilizador.
 """
 import configparser
 from pathlib import Path
