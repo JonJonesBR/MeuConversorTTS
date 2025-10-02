@@ -1,4 +1,4 @@
-# Conversor TTS – Texto para Fala (PT-BR)
+# MeuConversorTTS – Texto para Fala (PT-BR)
 
 Um script completo e modular para converter textos em arquivos de áudio (MP3) de alta qualidade, utilizando a tecnologia Edge TTS da Microsoft. Compatível com Windows, Linux e Android (via Termux).
 
@@ -6,126 +6,134 @@ Este projeto foi reestruturado para ser mais robusto, fácil de manter e de evol
 
 ## ✨ Funcionalidades
 
-- ✅ Estrutura Modular: Código organizado para fácil manutenção e contribuição.
-- ✅ Compatível com Windows, Linux e Termux (Android).
-- 🎙️ Múltiplas vozes neurais em português brasileiro.
-- 📜 Suporte a textos longos com divisão inteligente em parágrafos e frases.
-- 📄 Conversão integrada de arquivos PDF e EPUB para texto limpo e formatado.
-- ⚙️ Processamento de Texto Avançado:
+- ✅ **Estrutura Modular**: Código organizado para fácil manutenção e contribuição.
+- ✅ **Multiplataforma**: Scripts de instalação dedicados para Windows, Linux e Termux (Android).
+- 🎙️ **Múltiplas Vozes Neurais**: Suporte às vozes em português brasileiro da Edge TTS.
+- 📜 **Textos Longos**: Divisão inteligente de textos longos em parágrafos e frases para evitar erros.
+- 📄 **Leitor de Arquivos**: Conversão integrada de arquivos PDF e EPUB para texto limpo e formatado.
+- ⚙️ **Processamento de Texto Avançado**:
   - Expansão de abreviações (Dr. → Doutor).
   - Conversão de números cardinais e ordinais (123 → cento e vinte e três, 1º → primeiro).
   - Normalização de capítulos (Capítulo IV → CAPÍTULO 4.).
-- ⚡ Melhoria de Áudio: Acelere, converta para vídeo, ou divida arquivos longos.
-- 🎬 Criação de Vídeo: Converta arquivos de áudio MP3 em vídeos MP4 com tela preta.
-- 🔧 Gerenciamento de Dependências: Instalação simplificada com requirements.txt.
+- ⚡ **Pós-processamento de Áudio**: Acelere, divida ou melhore a qualidade dos seus arquivos de áudio.
+- 🎬 **Criação de Vídeo**: Converta arquivos MP3 em vídeos MP4 com uma tela preta, ideal para uploads.
+- 🔧 **Gerenciamento de Dependências**: Instalação simplificada com `requirements.txt` e ambientes virtuais.
 
-## ⚙️ Guia de Instalação e Uso
+## 🚀 Guia Rápido de Instalação (Recomendado)
 
-O processo agora utiliza as melhores práticas para projetos Python, incluindo git e ambientes virtuais.
+Use nossos scripts para automatizar todo o processo de download e configuração. Escolha o seu sistema operacional e siga os passos.
 
-## 🪟 Windows
+### 🪟 Windows
 
-### 1. Pré-requisitos (Windows)
+Abra o **Prompt de Comando (cmd)**, cole o comando abaixo e pressione Enter. Ele irá baixar e executar o instalador.
 
-- Python: Instale a versão mais recente a partir de [python.org](https://python.org). Marque a opção "Add Python to PATH" durante a instalação.
-- Git: Instale o Git para Windows a partir de [git-scm.com](https://git-scm.com).
+```powershell
+curl -L -o instalar-windows.bat https://raw.githubusercontent.com/JonJonesBR/MeuConversorTTS/main/instalar-windows.bat && instalar-windows.bat
+```
+Nota: O script irá verificar se você tem Python e Git. Ele também avisará sobre a necessidade de instalar FFmpeg e Poppler manualmente.
 
-### 2. Instalação (Windows)
-
-Abra o Prompt de Comando (cmd) ou PowerShell e execute os comandos abaixo, um por um.
+### 🐧 Linux (Ubuntu/Debian)
+Abra o terminal e execute os seguintes comandos:
 
 ```bash
-# 1. Clone (baixe) o projeto do GitHub
-git clone https://github.com/JonJonesBR/MeuConversorTTS.git
+# Baixa o script de instalação
+curl -L -o instalar-linux.sh https://raw.githubusercontent.com/JonJonesBR/MeuConversorTTS/main/instalar-linux.sh
 
-# 2. Entre na pasta do projeto que foi criada
-cd Conversor_TTS
-
-# 3. Crie um ambiente virtual para isolar as dependências
-python -m venv venv
-
-# 4. Ative o ambiente virtual
-.\venv\Scripts\activate
-
-# 5. Instale todas as dependências necessárias de uma só vez
-pip install -r requirements.txt
+# Dá permissão de execução e roda o script
+chmod +x instalar-linux.sh
+./instalar-linux.sh
 ```
 
-### 3. Execução (Windows)
-
-Com o ambiente virtual ainda ativo ((venv) aparecendo no terminal), execute o script principal:
+### 📱 Android (Termux)
+Abra o Termux e execute os seguintes comandos:
 
 ```bash
-python main.py
+# Baixa o script de instalação
+curl -L -o instalar-android.sh https://raw.githubusercontent.com/JonJonesBR/MeuConversorTTS/main/instalar-android.sh
+
+# Dá permissão de execução e roda o script
+chmod +x instalar-android.sh
+./instalar-android.sh
 ```
 
-## 🐧 Linux / 📱 Android (Termux)
+## ▶️ Como Executar o Programa
+Após a instalação (automática ou manual), os passos para executar são sempre os mesmos:
 
-### 1. Pré-requisitos (Linux/Termux)
-
-No seu terminal, instale as ferramentas essenciais:
+Navegue até a pasta do projeto:
 
 ```bash
-# Atualize os pacotes
-pkg update -y && pkg upgrade -y
+cd MeuConversorTTS
+```
 
-# Instale as dependências de sistema
+Ative o ambiente virtual:
+
+- No Windows: `venv\Scripts\activate`
+- No Linux/Termux: `source venv/bin/activate`
+
+Execute o script principal:
+
+- No Windows: `python main.py`
+- No Linux/Termux: `python3 main.py`
+
+## 🔧 Instalação Manual (Para Usuários Avançados)
+<details>
+<summary>Clique para expandir as instruções de instalação manual</summary>
+
+### 1. Pré-requisitos
+**Windows**:
+- Instale Python (marque "Add Python to PATH").
+- Instale Git.
+- Instale FFmpeg e Poppler e adicione-os ao PATH do sistema.
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 git ffmpeg poppler-utils python3-venv
+```
+
+**Android (Termux):**
+```bash
+pkg update && pkg upgrade -y
 pkg install -y python git ffmpeg poppler
-
-# Conceda permissão de acesso ao armazenamento (para Termux)
 termux-setup-storage
 ```
 
-### 2. Instalação (Linux/Termux)
-
-Continue no mesmo terminal para baixar o projeto e instalar as dependências Python.
+### 2. Comandos de Instalação
+Abra o terminal/cmd, e execute os comandos abaixo, um por um.
 
 ```bash
 # 1. Clone (baixe) o projeto do GitHub
 git clone https://github.com/JonJonesBR/MeuConversorTTS.git
 
-# 2. Entre na pasta do projeto
-cd Conversor_TTS
+# 2. Entre na pasta do projeto que foi criada (MUITO IMPORTANTE)
+cd MeuConversorTTS
 
 # 3. Crie um ambiente virtual
+# No Windows:
 python -m venv venv
+# No Linux/Termux:
+python3 -m venv venv
 
 # 4. Ative o ambiente virtual
+# No Windows:
+venv\Scripts\activate
+# No Linux/Termux:
 source venv/bin/activate
 
 # 5. Instale as dependências Python
 pip install -r requirements.txt
 ```
+</details>
 
-### 3. Execução (Linux/Termux)
-
-Com o ambiente virtual ativo, execute o script:
-
-```bash
-python main.py
-```
-
-## 🔄 Como Atualizar o Script
-
-Com o git, atualizar é muito simples. Abra o terminal na pasta do projeto (Conversor_TTS) e execute o comando:
+## 🔄 Como Atualizar o Projeto
+Com o git, atualizar é muito simples. Abra o terminal na pasta do projeto (MeuConversorTTS) e execute o comando:
 
 ```bash
 git pull origin main
 ```
-
-Isso baixará a versão mais recente de todos os arquivos do projeto.
-
-## ❓ Problemas Comuns e Soluções
-
-- Erro: python ou git não encontrado
-  - Certifique-se de que o Python e o Git foram instalados corretamente e adicionados ao PATH do sistema.
-- Erro: pip falhou ao instalar um pacote
-  - Verifique sua conexão com a internet. No Linux, pode ser necessário instalar pacotes de desenvolvimento (python3-dev, build-essential).
-- Erro de permissão no Termux
-  - Execute o comando termux-setup-storage novamente e confirme a permissão.
+Dica: Após atualizar, é uma boa prática reativar o ambiente virtual e reinstalar as dependências com `pip install -r requirements.txt` para garantir que todas as novas bibliotecas sejam instaladas.
 
 ## 🤝 Como Contribuir
+Este projeto é aberto a contribuições! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, sinta-se à vontade para abrir uma Issue ou enviar um Pull Request.
 
-Agora que o projeto é modular, ficou muito mais fácil contribuir! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, abra uma issue ou envie um pull request.
-
-⭐ Se este projeto foi útil para você, deixe uma estrela no GitHub! ⭐
+⭐ Se este projeto foi útil para você, que tal deixar uma estrela no GitHub? Isso ajuda a dar mais visibilidade ao projeto! ⭐
