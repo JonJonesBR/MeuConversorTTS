@@ -82,7 +82,7 @@ Continue no mesmo terminal para baixar o projeto e instalar as dependências Pyt
 
 ```bash
 # 1. Clone (baixe) o projeto do GitHub
-git clone https://github.com/JonJonesBR/Conversor_TTS.git
+git clone https://github.com/JonJonesBR/MeuConversorTTS.git
 
 # 2. Entre na pasta do projeto
 cd Conversor_TTS
