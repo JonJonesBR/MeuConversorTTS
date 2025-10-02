@@ -457,9 +457,4 @@ async def menu_gerenciar_configuracoes():
                         settings_manager.salvar_configuracoes(voz_atual, nova_velocidade)
                         await asyncio.sleep(1)
                         break
-                    else: print("⚠️ Velocidade deve estar entre 0.5x e 5.0x.")
-                except ValueError: print("⚠️ Número inválido.")
-        
-        elif escolha == 3 or escolha == -1:
-            break
-
+else:
