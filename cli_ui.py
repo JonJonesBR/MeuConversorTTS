@@ -340,31 +340,244 @@ async def iniciar_conversao_em_lote():
 
 async def testar_vozes_tts():
     """Fluxo completo para a opção 'Testar Vozes'."""
-    # ... (código existente permanece o mesmo)
-    pass
+    shared_state.CANCELAR_PROCESSAMENTO = False
+    limpar_tela()
+    print("--- 🎙️ TESTE DE VOZES TTS ---")
+    print("Selecione uma voz da lista para ouvir um exemplo.")
+
+    for i, voz in enumerate(config.VOZES_PT_BR):
+        print(f"{i+1}. {voz.split('-')[2]}") # Mostra apenas o nome do locutor
+
+    escolha_idx = await obter_opcao_numerica("Escolha uma voz para testar (ou 0 para voltar)", len(config.VOZES_PT_BR), permitir_zero=True)
+    if escolha_idx <= 0:
+        return
+
+    voz_escolhida = config.VOZES_PT_BR[escolha_idx - 1]
+    velocidade_padrao = settings_manager.obter_configuracao('velocidade_padrao')
+
+    while not shared_state.CANCELAR_PROCESSAMENTO:
+        print("\n-----------------------------------")
+        print(f"Voz selecionada: {voz_escolhida.split('-')[2]}")
+        print(f"Velocidade: {velocidade_padrao}")
+        
+        texto_exemplo = await aioconsole.ainput("Digite o texto para teste (ou 'V' para voltar): ")
+        if shared_state.CANCELAR_PROCESSAMENTO or texto_exemplo.strip().upper() == 'V':
+            break
+        
+        if not texto_exemplo.strip():
+            print("⚠️ Texto não pode ser vazio.")
+            continue
+
+        caminho_audio_temp = Path.home() / f"temp_tts_test_{int(time.time())}.mp3"
+
+        print("\n🔄 A converter texto para áudio, aguarde...")
+        sucesso, _ = await tts_service.converter_texto_para_audio(
+            texto_exemplo,
+            voz_escolhida,
+            str(caminho_audio_temp),
+            velocidade=velocidade_padrao
+        )
+
+        if sucesso:
+            print("▶️ A reproduzir áudio...")
+            ffmpeg_utils.reproduzir_audio(str(caminho_audio_temp))
+            # Apaga o ficheiro de áudio temporário
+            try:
+                os.remove(caminho_audio_temp)
+            except OSError as e:
+                print(f"\n⚠️ Não foi possível apagar o ficheiro temporário: {e}")
+        else:
+            print("\n❌ Falha ao gerar o áudio de teste. Verifique a sua ligação à internet ou as configurações.")
+        
+        if not await obter_confirmacao("\nDeseja testar outro texto com esta mesma voz?", default_yes=True):
+            break
+            
+    await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 
 async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
     """Lógica interna para o fluxo de melhoria de multimédia."""
-    # ... (código existente permanece o mesmo)
-    pass
+    limpar_tela()
+    print(f"--- 🛠️ A MELHORAR: {Path(caminho_arquivo_entrada).name} ---")
+
+    opcoes_melhoria = {
+        '1': "Redução de Ruído (para vozes claras)",
+        '2': "Normalização de Volume (ajusta para -14 LUFS)",
+        '0': "Voltar"
+    }
+
+    while not shared_state.CANCELAR_PROCESSAMENTO:
+        print("\nSelecione a melhoria que deseja aplicar:")
+        for k, v in opcoes_melhoria.items():
+            print(f"{k}. {v}")
+        
+        escolha = await obter_opcao_numerica("Opção", len(opcoes_melhoria) - 1, permitir_zero=True)
+        if escolha <= 0:
+            return
+
+        path_entrada = Path(caminho_arquivo_entrada)
+        nome_saida = f"{path_entrada.stem}_melhorado_{list(opcoes_melhoria.values())[escolha-1].split()[0].lower()}{path_entrada.suffix}"
+        caminho_arquivo_saida = path_entrada.parent / nome_saida
+
+        sucesso = False
+        if escolha == 1:
+            print("\n🔄 A aplicar Redução de Ruído... (Isto pode demorar)")
+            sucesso = ffmpeg_utils.reduzir_ruido_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
+        elif escolha == 2:
+            print("\n🔄 A aplicar Normalização de Volume...")
+            sucesso = ffmpeg_utils.normalizar_audio_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
+
+        if sucesso:
+            print(f"\n✅ Melhoria concluída! Ficheiro salvo como: {nome_saida}")
+        else:
+            print("\n❌ Falha ao aplicar a melhoria. Verifique se o FFmpeg está instalado e se o ficheiro é válido.")
+
+        if not await obter_confirmacao("\nDeseja aplicar outra melhoria a este mesmo ficheiro original?", default_yes=False):
+            break
 
 async def menu_melhorar_audio_video():
     """Fluxo para a opção 'Melhorar Áudio/Vídeo'."""
-    # ... (código existente permanece o mesmo)
-    pass
+    shared_state.CANCELAR_PROCESSAMENTO = False
+    limpar_tela()
+    print("--- ⚡ MELHORIA DE ÁUDIO/VÍDEO ---")
+    print("Selecione um ficheiro de áudio ou vídeo para aplicar melhorias.")
+
+    extensoes_media = ['.mp3', '.wav', '.m4a', '.mp4', '.mkv', '.mov', '.avi']
+    caminho_arquivo = await _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=extensoes_media)
+
+    if not caminho_arquivo or shared_state.CANCELAR_PROCESSAMENTO:
+        print("\nNenhum ficheiro selecionado. A voltar ao menu...")
+        await asyncio.sleep(2)
+        return
+
+    await _processar_melhoria_de_audio_video(caminho_arquivo)
+    await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def exibir_ajuda():
     """Mostra a tela de ajuda com as instruções de uso."""
-    # ... (código existente permanece o mesmo)
-    pass
+    limpar_tela()
+    print("""
+--- ❓ AJUDA E INSTRUÇÕES ---
+
+Este script foi desenhado para facilitar a conversão de texto para áudio (TTS) e realizar melhorias em ficheiros de áudio e vídeo.
+
+➡️ Onde colocar os seus ficheiros?
+   - No telemóvel (Termux): Coloque seus ficheiros .txt, .pdf, ou .epub na pasta 'storage/shared/Download' ou qualquer outra pasta partilhada para que o script os possa encontrar.
+   - No PC: Pode navegar para qualquer pasta no seu sistema.
+
+➡️ O que cada opção faz?
+
+1.  🚀 CONVERTER UM ÚNICO FICHEIRO:
+    - Selecione um ficheiro .txt, .pdf ou .epub.
+    - O script irá extrair o texto, limpá-lo e convertê-lo para um áudio MP3.
+    - O ficheiro de áudio final será guardado na mesma pasta do ficheiro original, dentro de um novo subdiretório com o nome do áudio.
+
+2.  📚 CONVERTER PASTA INTEIRA (LOTE):
+    - Selecione uma pasta.
+    - O script irá procurar TODOS os ficheiros compatíveis (.txt, .pdf, .epub) dentro dela (e subpastas, se assim o desejar).
+    - Cada ficheiro será convertido para áudio, usando a voz e velocidade padrão definidas nas configurações.
+
+3.  🎙️ TESTAR VOZES TTS:
+    - Permite-lhe ouvir exemplos de todas as vozes disponíveis em Português do Brasil.
+    - Digite um texto qualquer e o script irá gerar e reproduzir o áudio na hora.
+
+4.  ⚡ MELHORAR ÁUDIO/VÍDEO:
+    - Selecione um ficheiro de áudio ou vídeo já existente.
+    - Pode aplicar melhorias como:
+        - Redução de Ruído: Ideal para limpar gravações de voz com ruído de fundo.
+        - Normalização de Volume: Ajusta o volume do áudio para um nível padrão, útil para juntar vários áudios.
+
+5.  ⚙️ CONFIGURAÇÕES:
+    - Altere a voz padrão e a velocidade da fala que serão usadas nas conversões em lote.
+
+6.  🔄 ATUALIZAR SCRIPT:
+    - Verifica se existe uma nova versão do script no GitHub e instala-a automaticamente.
+
+7.  ❓ AJUDA:
+    - Exibe esta tela.
+
+0.  🚪 SAIR:
+    - Encerra a aplicação.
+
+
+--- DICAS ---
+
+- CANCELAR: Pressione CTRL+C a qualquer momento para cancelar a operação atual.
+- DEPENDÊNCIAS: Se algo não funcionar, certifique-se que executou o script de instalação correto (instalar-*.sh ou .bat) para instalar todas as dependências como o FFmpeg.
+
+""")
+    await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def atualizar_script():
     """Verifica por atualizações no repositório GitHub de forma segura."""
-    # ... (código existente permanece o mesmo)
-    pass
+    limpar_tela()
+    print("--- 🔄 VERIFICAR ATUALIZAÇÕES ---")
+    await updater.verificar_e_atualizar()
+    await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def menu_gerenciar_configuracoes():
     """Permite ao utilizador visualizar e alterar as configurações padrão."""
-    # ... (código existente permanece o mesmo)
-    pass
+    shared_state.CANCELAR_PROCESSAMENTO = False
+    
+    opcoes_config = {
+        '1': "Alterar Voz Padrão",
+        '2': "Alterar Velocidade Padrão da Voz",
+        '0': "Voltar ao Menu Principal"
+    }
+
+    while not shared_state.CANCELAR_PROCESSAMENTO:
+        limpar_tela()
+        print("--- ⚙️ CONFIGURAÇÕES ---")
+        voz_atual = settings_manager.obter_configuracao('voz_padrao')
+        velocidade_atual = settings_manager.obter_configuracao('velocidade_padrao')
+        print(f"\nValores Atuais:")
+        print(f"  - Voz Padrão: {voz_atual.split('-')[2]}")
+        print(f"  - Velocidade Padrão: {velocidade_atual}")
+        
+        print("\nO que deseja fazer?")
+        for k, v in opcoes_config.items():
+            print(f"{k}. {v}")
+
+        escolha = await obter_opcao_numerica("Opção", len(opcoes_config) - 1, permitir_zero=True)
+        if escolha <= 0:
+            return
+
+        if escolha == 1: # Alterar Voz
+            limpar_tela()
+            print("--- SELECIONAR VOZ PADRÃO ---")
+            for i, voz in enumerate(config.VOZES_PT_BR):
+                print(f"{i+1}. {voz.split('-')[2]}")
+            escolha_voz_idx = await obter_opcao_numerica("Escolha a nova voz padrão", len(config.VOZES_PT_BR))
+            if escolha_voz_idx > 0:
+                nova_voz = config.VOZES_PT_BR[escolha_voz_idx - 1]
+                settings_manager.salvar_configuracoes('voz_padrao', nova_voz)
+                print(f"\n✅ Voz padrão alterada para: {nova_voz.split('-')[2]}")
+                await asyncio.sleep(2)
+
+        elif escolha == 2: # Alterar Velocidade
+            print("\n--- ALTERAR VELOCIDADE PADRÃO ---")
+            print("A velocidade é um multiplicador (ex: 1.0 = normal, 1.2 = 20% mais rápido, 0.9 = 10% mais lento)")
+            print("Use valores entre 0.5 e 2.0. Use '.' como separador decimal.")
+            while True:
+                try:
+                    nova_velocidade_str = await aioconsole.ainput("Digite a nova velocidade (ou 'V' para voltar): ")
+                    if nova_velocidade_str.strip().upper() == 'V': break
+                    nova_velocidade = float(nova_velocidade_str)
+                    if 0.5 <= nova_velocidade <= 2.0:
+                        # Formata para uma string com o formato +X% ou -X%
+                        velocidade_formatada = f"{int((nova_velocidade - 1.0) * 100):+d}%".replace("+0%", "x1.0")
+                        if nova_velocidade > 1.0: velocidade_formatada = f"+{velocidade_formatada.split('%')[0]}%"
+                        else: velocidade_formatada = f"{velocidade_formatada.split('%')[0]}%"
+                        if nova_velocidade == 1.0: velocidade_formatada = "x1.0"
+                        else: velocidade_formatada = f"x{nova_velocidade:.2f}"
+
+                        settings_manager.salvar_configuracoes('velocidade_padrao', velocidade_formatada)
+                        print(f"\n✅ Velocidade padrão alterada para: {velocidade_formatada}")
+                        await asyncio.sleep(2)
+                        break
+                    else:
+                        print("⚠️ Valor fora do intervalo recomendado (0.5 a 2.0).")
+                except ValueError:
+                    print("⚠️ Entrada inválida. Por favor, digite um número como 1.2")
+                except asyncio.CancelledError:
+                    break

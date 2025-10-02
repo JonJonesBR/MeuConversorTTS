@@ -24,6 +24,7 @@ ENCODINGS_TENTATIVAS = ['utf-8', 'utf-16', 'iso-8859-1', 'cp1252']
 # ================== CONFIGURAÇÕES DE VÍDEO E FFMPEG ==================
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
+FFPLAY_BIN = "ffplay"
 
 # Limite em segundos para sugerir a divisão de arquivos de mídia longos.
 # 43200 segundos = 12 horas

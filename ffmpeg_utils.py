@@ -193,8 +193,24 @@ def acelerar_midia_ffmpeg(input_path, output_path, velocidade, is_video):
     
     return _executar_ffmpeg_comando(comando, f"Aceleração ({velocidade}x)", total_duration=duracao_original)
 
-def dividir_midia_ffmpeg(input_path, duracao_total_seg, duracao_max_parte_seg, nome_base_saida, extensao_saida):
-    """Divide um arquivo de mídia em partes menores usando FFmpeg (sem reencodar)."""
+def reproduzir_audio(caminho_audio: str):
+    """Reproduz um arquivo de áudio usando ffplay."""
+    if not shutil.which(config.FFPLAY_BIN):
+        print(f"\n⚠️  {config.FFPLAY_BIN} não encontrado. Não é possível reproduzir o áudio de teste.")
+        print(f"    O ficheiro foi salvo em: {caminho_audio}")
+        return
+
+    comando = [config.FFPLAY_BIN, '-v', 'error', '-nodisp', '-autoexit', caminho_audio]
+    try:
+        subprocess.run(comando, check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        print(f"\n⚠️  Comando '{config.FFPLAY_BIN}' não encontrado. Verifique se o FFmpeg (ffplay) está instalado.")
+        print(f"    O ficheiro de teste foi salvo em: {caminho_audio}")
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Erro ao reproduzir áudio com {config.FFPLAY_BIN}:")
+        print(e.stderr)
+
+
     num_partes = ceil(duracao_total_seg / duracao_max_parte_seg)
     print(f"\n    📄 Arquivo com {duracao_total_seg/3600:.2f}h será dividido em {num_partes} partes.")
     

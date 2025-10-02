@@ -60,51 +60,36 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     return [p for p in partes_super_finais if p.strip()]
 
 
-async def converter_chunk_tts(texto_chunk: str, voz: str, caminho_saida: str, indice: int, total: int) -> bool:
+async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, velocidade: str = "x1.0") -> tuple[bool, str]:
     """
-    Converte um único chunk de texto para áudio. Gere tentativas e erros.
-    Retorna True em sucesso, False em falha.
+    Converte um texto para áudio e salva-o diretamente. Ideal para testes.
+    Retorna (True, caminho_saida) em sucesso, (False, "mensagem de erro") em falha.
     """
     path_saida_obj = Path(caminho_saida)
+    path_saida_obj.unlink(missing_ok=True)
 
-    # Pula se o arquivo já existe e é válido (retomada de progresso)
-    if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
-        return True
+    # Converte o formato de velocidade (ex: 'x1.2') para o formato do edge-tts (ex: '+20%')
+    try:
+        multiplicador = float(velocidade.replace('x', ''))
+        rate_str = f"{int((multiplicador - 1.0) * 100):+d}%"
+    except ValueError:
+        rate_str = "+0%" # Valor padrão se a string de velocidade for inválida
 
-    tentativas = 0
-    while tentativas < config.MAX_TTS_TENTATIVAS:
-        if shared_state.CANCELAR_PROCESSAMENTO:
-            return False
-        
-        # Garante que um arquivo inválido de uma tentativa anterior seja removido
-        path_saida_obj.unlink(missing_ok=True)
-        
-        try:
-            communicate = edge_tts.Communicate(texto_chunk, voz)
-            await communicate.save(caminho_saida)
+    try:
+        communicate = edge_tts.Communicate(text=texto, voice=voz, rate=rate_str)
+        await communicate.save(caminho_saida)
 
-            if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
-                return True  # Sucesso!
-            else:
-                tamanho = path_saida_obj.stat().st_size if path_saida_obj.exists() else 0
-                print(f"\n⚠️  Chunk {indice}/{total}: Arquivo de áudio gerado é inválido (tamanho: {tamanho} bytes).")
-
-        except edge_tts.exceptions.NoAudioReceived:
-            print(f"\n⚠️  Chunk {indice}/{total}: API não retornou áudio (NoAudioReceived).")
-        except asyncio.TimeoutError:
-            print(f"\n⚠️  Chunk {indice}/{total}: Timeout na comunicação com a API.")
-        except Exception as e:
-            print(f"\n❌ Erro INESPERADO no chunk {indice}/{total}: {type(e).__name__} - {e}")
-
-        # Se chegou aqui, a tentativa falhou.
-        tentativas += 1
-        if tentativas < config.MAX_TTS_TENTATIVAS:
-            tempo_espera = 2 * tentativas
-            print(f"   Tentando novamente em {tempo_espera}s...")
-            await asyncio.sleep(tempo_espera)
+        if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
+            return True, str(caminho_saida)
         else:
-            print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
-            path_saida_obj.unlink(missing_ok=True)
-            return False
-            
-    return False
+            tamanho = path_saida_obj.stat().st_size if path_saida_obj.exists() else 0
+            return False, f"Ficheiro de áudio gerado é inválido (tamanho: {tamanho} bytes)."
+
+    except edge_tts.exceptions.NoAudioReceived:
+        return False, "API não retornou áudio (NoAudioReceived)."
+    except asyncio.TimeoutError:
+        return False, "Timeout na comunicação com a API."
+    except Exception as e:
+        return False, f"Erro inesperado: {type(e).__name__} - {e}"
+
+
