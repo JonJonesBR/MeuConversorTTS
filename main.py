@@ -29,7 +29,7 @@ async def main_loop():
     """O loop principal que exibe o menu e direciona para as funções corretas."""
     opcoes_principais = {
         '1': "🚀 CONVERTER UM ÚNICO FICHEIRO",
-        '2': "📚 CONVERTER PASTA INTEIRA (LOTE)", # <- NOVA OPÇÃO
+        '2': "📚 CONVERTER PASTA INTEIRA (LOTE)",
         '3': "🎙️ TESTAR VOZES TTS",
         '4': "⚡ MELHORAR ÁUDIO/VÍDEO",
         '5': "⚙️ CONFIGURAÇÕES (Voz e Velocidade Padrão)",
@@ -53,6 +53,46 @@ async def main_loop():
                 await cli_ui.menu_melhorar_audio_video()
             elif escolha == 5:
                 await cli_ui.menu_gerenciar_configuracoes()
+            elif escolha == 6:
+                await cli_ui.atualizar_script()
+            elif escolha == 7:
+                await cli_ui.exibir_ajuda()
+            elif escolha == 0:
+                print("\n👋 Obrigado por usar o Conversor TTS Completo!")
+                break
+            elif escolha == -1: # Opção para quando o utilizador cancela a seleção
+                continue
+
+        except asyncio.CancelledError:
+            print("\n🚫 Operação cancelada no menu. A voltar...")
+            await asyncio.sleep(1)
+        except Exception as e_main:
+            print(f"\n❌ Ocorreu um erro inesperado no loop principal: {e_main}")
+            import traceback
+            traceback.print_exc()
+            await cli_ui.aioconsole.ainput("Pressione ENTER para tentar continuar...")
+
+if __name__ == "__main__":
+    if Path(__file__).name == "code.py":
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!! ERRO DE NOME: Renomeie este ficheiro para 'main.py' para evitar conflitos!!!")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        sys.exit(1)
+        
+    signal.signal(signal.SIGINT, handler_sinal)
+
+    # ---- Bloco de inicialização ----
+    settings_manager.carregar_configuracoes()
+    system_utils.verificar_dependencias_essenciais()
+    # ------------------------------------
+
+    try:
+        print("A iniciar aplicação...")
+        asyncio.run(main_loop())
+    except KeyboardInterrupt:
+        print("\n\n⚠️ Programa interrompido.")
+    finally:
+        print("🔚 Script finalizado.")                await cli_ui.menu_gerenciar_configuracoes()
             elif escolha == 6:
                 await cli_ui.atualizar_script()
             elif escolha == 7:
