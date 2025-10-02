@@ -11,7 +11,7 @@ REPO_URL = "https://github.com/JonJonesBR/MeuConversorTTS.git"
 
 def is_git_repository():
     """Verifica se o diretório atual do script é um repositório Git válido."""
-    project_path = Path(__file__).parent
+    project_path = Path.cwd()
     git_path = project_path / ".git"
     return git_path.is_dir()
 
@@ -22,23 +22,20 @@ def check_for_updates_git():
     """
     try:
         print("🔎 A verificar o estado do repositório local...")
-        # Garante que o estado local está limpo antes de verificar
         subprocess.run(
             ["git", "status"],
-            capture_output=True, check=True, text=True
+            capture_output=True, check=True, text=True, cwd=Path.cwd()
         )
 
         print("📡 A contactar o GitHub para procurar atualizações...")
-        # Busca as últimas alterações do repositório remoto sem as aplicar
         subprocess.run(
             ["git", "fetch"],
-            capture_output=True, check=True, text=True
+            capture_output=True, check=True, text=True, cwd=Path.cwd()
         )
 
-        # Compara o estado local com o remoto que acabámos de buscar
         status_result = subprocess.run(
             ["git", "status", "-uno"],
-            capture_output=True, check=True, text=True
+            capture_output=True, check=True, text=True, cwd=Path.cwd()
         )
         
         output = status_result.stdout.lower()
@@ -57,6 +54,5 @@ def check_for_updates_git():
     except subprocess.CalledProcessError as e:
         error_message = e.stderr or e.stdout
         if "not a git repository" in error_message.lower():
-             # Este erro não deveria acontecer se is_git_repository for chamado primeiro
              return "erro", "❌ Esta não parece ser uma instalação via 'git clone'."
         return "erro", f"❌ Ocorreu um erro ao comunicar com o Git:\n{error_message}"
