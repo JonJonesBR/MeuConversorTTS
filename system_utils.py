@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Módulo para interações com o sistema operacional, como detecção de SO,
+Módulo para interações com o sistema operacional, como deteção de SO,
 verificação e instalação de dependências externas (FFmpeg, Poppler).
 """
 import os
@@ -78,7 +78,7 @@ def _instalar_dependencia_termux_auto(pkg: str) -> bool:
     return False
 
 def instalar_poppler_windows():
-    """Baixa e tenta instalar o Poppler para Windows no diretório de dados do usuário."""
+    """Baixa e tenta instalar o Poppler para Windows no diretório de dados do utilizador."""
     if shutil.which("pdftotext.exe"):
         print("✅ Poppler (pdftotext.exe) já encontrado no PATH.")
         return True
@@ -115,7 +115,6 @@ def instalar_poppler_windows():
         os.environ['PATH'] = f"{bin_path};{os.environ['PATH']}"
         if shutil.which("pdftotext.exe"):
             print("✅ Poppler agora está acessível nesta sessão.")
-            # O ideal seria instruir o usuário a adicionar permanentemente, mas para o script rodar, isso basta.
             print("   OBS: Pode ser necessário adicionar o diretório acima ao PATH do Windows manualmente para uso futuro.")
             return True
         else:
