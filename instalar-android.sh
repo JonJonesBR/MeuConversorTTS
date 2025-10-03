@@ -15,7 +15,13 @@ pkg install -y python git ffmpeg poppler
 
 # Passo 2: Configurar o acesso ao armazenamento
 echo ">>> (3/6) Solicitando permissão de armazenamento..."
-echo "!!! ATENÇÃO: Uma janela do Android vai aparecer. Por favor, clique em 'Permitir'."
+echo "!!! IMPORTANTE: Antes de prosseguir, você precisa conceder permissão de armazenamento ao Termux."
+echo "Uma janela do Android vai aparecer. Clique em 'Permitir' para continuar."
+read -p "Digite 'sim' para conceder a permissão e continuar a instalação: " confirmacao
+if [ "$confirmacao" != "sim" ]; then
+    echo "Instalação cancelada. Execute o script novamente quando estiver pronto."
+    exit 1
+fi
 termux-setup-storage
 
 # Passo 3: Baixar o projeto do GitHub

@@ -16,6 +16,23 @@ import shared_state
 import system_utils
 import settings_manager
 
+def verificar_permissoes_termux():
+    """Verifica se as permissões de armazenamento estão concedidas no Termux."""
+    sistema = system_utils.detectar_sistema()
+    if sistema['termux']:
+        storage_path = Path("/storage/emulated/0")
+        if not storage_path.is_dir():
+            print("❌ Permissão de armazenamento não concedida no Termux.")
+            print("Para conceder, execute: termux-setup-storage")
+            print("E responda 'sim' quando solicitado.")
+            input("Pressione ENTER após conceder a permissão para continuar...")
+            # Verifica novamente após o usuário conceder
+            if not storage_path.is_dir():
+                print("❌ Ainda não foi possível acessar o armazenamento. Saindo.")
+                sys.exit(1)
+        else:
+            print("✅ Permissões de armazenamento verificadas.")
+
 def handler_sinal(signum, frame):
     """Lida com o sinal de interrupção (CTRL+C)."""
     if not shared_state.CANCELAR_PROCESSAMENTO:
@@ -85,6 +102,7 @@ if __name__ == "__main__":
     # ---- Bloco de inicialização ----
     settings_manager.carregar_configuracoes()
     system_utils.verificar_dependencias_essenciais()
+    verificar_permissoes_termux()
     # ------------------------------------
 
     try:
