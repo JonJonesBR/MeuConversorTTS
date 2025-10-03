@@ -48,7 +48,9 @@ chmod +x instalar-linux.sh
 
 ### 📱 Android (Termux)
 
-Abra o Termux e execute os seguintes comandos:
+Primeiro, baixe e instale o Termux a partir do F-Droid (link direto): [https://f-droid.org/repo/com.termux_1022.apk](https://f-droid.org/repo/com.termux_1022.apk)
+
+Após instalar o Termux, abra o aplicativo e execute os seguintes comandos:
 
 ```bash
 # Baixa o script de instalação
