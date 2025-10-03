@@ -54,4 +54,8 @@ echo "3. Por fim, execute o programa principal com:"
 echo "   python main.py"
 echo ""
 
+<<<<<<< HEAD
 # --- FIM DO SCRIPT ---
+=======
+# --- FIM DO SCRIPT ---
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

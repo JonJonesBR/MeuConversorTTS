@@ -83,7 +83,15 @@ ECHO    venv\Scripts\activate.bat
 ECHO 4. Execute o programa principal com:
 ECHO    python main.py
 ECHO.
+<<<<<<< HEAD
+
 pause
 exit
 
 :: --- FIM DO SCRIPT ---
+=======
+pause
+exit
+
+:: --- FIM DO SCRIPT ---
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

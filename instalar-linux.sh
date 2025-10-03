@@ -49,4 +49,8 @@ echo "3. Execute o programa principal com:"
 echo "   python3 main.py"
 echo ""
 
+<<<<<<< HEAD
 # --- FIM DO SCRIPT ---
+=======
+# --- FIM DO SCRIPT ---
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

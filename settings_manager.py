@@ -54,7 +54,7 @@ def salvar_configuracoes(voz, velocidade):
     # Atualiza o dicionário global em memória
     CONFIG['Geral']['voz_padrao'] = voz
     CONFIG['Geral']['velocidade_padrao'] = str(velocidade)
-    print("✅ Configurações salvas com sucesso!")
+    print("Configuracoes salvas com sucesso!")
 
 def obter_configuracao(chave):
     """Retorna o valor de uma chave de configuração."""

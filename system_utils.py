@@ -48,10 +48,10 @@ def _verificar_comando(comando_args, mensagem_sucesso, mensagem_falha, install_c
     """Função genérica para verificar se um comando existe no sistema."""
     try:
         subprocess.run(comando_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        print(f"✅ {mensagem_sucesso}")
+        print(f"{mensagem_sucesso}")
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print(f"⚠️ {mensagem_falha}")
+        print(f"{mensagem_falha}")
         sistema_atual = detectar_sistema()
         current_os_name = sistema_atual.get('nome', '')
         
@@ -71,16 +71,16 @@ def _instalar_dependencia_termux_auto(pkg: str) -> bool:
         print(f"▷ Tentando instalar '{pkg}' no Termux automaticamente...")
         subprocess.run(['pkg', 'update', '-y'], check=True, capture_output=True)
         subprocess.run(['pkg', 'install', '-y', pkg], check=True, capture_output=True)
-        print(f"✅ Pacote Termux '{pkg}' instalado com sucesso!")
+        print(f"Pacote Termux '{pkg}' instalado com sucesso!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erro ao instalar pacote Termux '{pkg}': {e.stderr.decode() if e.stderr else e}")
+        print(f"Erro ao instalar pacote Termux '{pkg}': {e.stderr.decode() if e.stderr else e}")
     return False
 
 def instalar_poppler_windows():
     """Baixa e tenta instalar o Poppler para Windows no diretório de dados do utilizador."""
     if shutil.which("pdftotext.exe"):
-        print("✅ Poppler (pdftotext.exe) já encontrado no PATH.")
+        print("Poppler (pdftotext.exe) ja encontrado no PATH.")
         return True
     
     print("📦 Poppler (pdftotext.exe) não encontrado. Tentando instalar automaticamente...")
@@ -107,14 +107,19 @@ def instalar_poppler_windows():
         bin_path = os.path.join(install_dir, bin_path_relative)
         
         if not os.path.exists(os.path.join(bin_path, 'pdftotext.exe')):
-            print(f"❌ Erro: 'pdftotext.exe' não encontrado em {bin_path} após extração.")
+            print(f"Erro: 'pdftotext.exe' nao encontrado em {bin_path} apos extracao.")
             return False
 
-        print(f"✅ Poppler extraído para: {bin_path}")
+        print(f"Poppler extraido para: {bin_path}")
         # Tenta adicionar ao PATH da sessão atual
         os.environ['PATH'] = f"{bin_path};{os.environ['PATH']}"
         if shutil.which("pdftotext.exe"):
+<<<<<<< HEAD
+            print("Poppler agora esta acessivel nesta sessao.")
+            # O ideal seria instruir o usuário a adicionar permanentemente, mas para o script rodar, isso basta.
+=======
             print("✅ Poppler agora está acessível nesta sessão.")
+>>>>>>> bb19449059105991693c172edf8db34073a419fe
             print("   OBS: Pode ser necessário adicionar o diretório acima ao PATH do Windows manualmente para uso futuro.")
             return True
         else:
@@ -122,7 +127,7 @@ def instalar_poppler_windows():
             return False
             
     except Exception as e:
-        print(f"❌ Erro inesperado ao instalar Poppler: {e}")
+        print(f"Erro inesperado ao instalar Poppler: {e}")
         return False
 
 def verificar_dependencias_essenciais():
@@ -152,4 +157,4 @@ def verificar_dependencias_essenciais():
             'windows': ['Tentativa de instalação automática será feita se necessário.']
         }
     )
-    print("✅ Verificação de dependências concluída.")
+    print("Verificacao de dependencias concluida.")

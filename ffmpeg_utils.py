@@ -1,139 +1,79 @@
 # -*- coding: utf-8 -*-
 """
-Módulo que encapsula todas as interações com as ferramentas
-de linha de comando FFmpeg e FFprobe.
+Módulo para operações avançadas de áudio e vídeo usando FFmpeg.
 """
-import os
-import sys
-import re
-import time
-import platform
 import subprocess
-import shutil
+import os
 from pathlib import Path
-from math import ceil
-from tqdm import tqdm
+import shutil
+import json
 
-# Importa de nossos outros módulos
+# Importa as configurações do nosso arquivo config.py
 import config
-import shared_state
 
-# Regex pré-compilada para capturar o tempo do progresso do FFmpeg
-FFMPEG_PROGRESS_RE = re.compile(r"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")
-
-def _parse_ffmpeg_time(time_str: str) -> float:
-    """Converte tempo 'HH:MM:SS.ms' do FFmpeg para segundos."""
-    match = FFMPEG_PROGRESS_RE.search(time_str)
-    if match:
-        h, m, s, ms = map(int, match.groups())
-        return h * 3600 + m * 60 + s + ms / 100.0
-    return 0.0
-
-def _executar_ffmpeg_comando(comando_ffmpeg: list, descricao_acao: str, total_duration: float = 0.0):
-    """Executa um comando FFmpeg, lida com erros e mostra progresso."""
-    if shared_state.CANCELAR_PROCESSAMENTO:
-        print(f"🚫 {descricao_acao} cancelada antes de iniciar.")
+def unificar_arquivos_audio_ffmpeg(lista_arquivos_entrada: list[str], caminho_saida: str) -> bool:
+    """
+    Une múltiplos arquivos de áudio em um único arquivo usando FFmpeg.
+    """
+    if len(lista_arquivos_entrada) == 0:
+        print("❌ Nenhum arquivo de entrada fornecido para unificação.")
         return False
-
-    print(f"⚙️ Executando: {descricao_acao}...")
-    try:
-        process = subprocess.Popen(
-            comando_ffmpeg,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            encoding='utf-8',
-            errors='ignore'
-        )
-
-        with tqdm(total=100, unit="%", desc=f"   {descricao_acao[:20]}", disable=total_duration <= 0) as pbar:
-            while process.poll() is None:
-                if shared_state.CANCELAR_PROCESSAMENTO:
-                    print("\n🚫 Recebido sinal de cancelamento. Tentando terminar o FFmpeg...")
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                    print("🚫 Processo FFmpeg terminado.")
-                    return False
-
-                if process.stderr is None:
-                    time.sleep(0.05)
-                    continue
-                line = process.stderr.readline()
-                if not line:
-                    time.sleep(0.05)
-                    continue
-                
-                if total_duration > 0 and 'time=' in line:
-                    elapsed_seconds = _parse_ffmpeg_time(line)
-                    if elapsed_seconds > 0:
-                        percent = min(100, (elapsed_seconds / total_duration) * 100)
-                        update_value = percent - pbar.n
-                        if update_value > 0:
-                            pbar.update(update_value)
-
-        return_code = process.returncode
-        if return_code != 0:
-            stdout, stderr = process.communicate()
-            print(f"\n❌ Erro durante {descricao_acao} (código {return_code}).")
-            print("   Últimas linhas do erro:", stderr.strip().splitlines()[-5:])
-            return False
-
-        print(f"✅ {descricao_acao} concluída.")
+    
+    if len(lista_arquivos_entrada) == 1:
+        # Se só tem um arquivo, apenas copia com o novo nome
+        import shutil
+        shutil.copy2(lista_arquivos_entrada[0], caminho_saida)
         return True
 
-    except FileNotFoundError:
-        print(f"❌ Comando '{comando_ffmpeg[0]}' não encontrado. Verifique se o FFmpeg está instalado e no PATH.")
-        return False
-    except Exception as e:
-        print(f"❌ Erro inesperado ao executar FFmpeg: {e}")
-        return False
-
-def obter_duracao_midia(caminho_arquivo: str) -> float:
-    """Obtém a duração de um arquivo de mídia em segundos usando ffprobe."""
-    if not shutil.which(config.FFPROBE_BIN):
-        print(f"⚠️ {config.FFPROBE_BIN} não encontrado. Não é possível obter duração da mídia.")
-        return 0.0
-    
-    comando = [
-        config.FFPROBE_BIN, '-v', 'error', '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1', caminho_arquivo
-    ]
+    # Cria um arquivo temporário de lista para o FFmpeg
+    arquivo_lista = Path(caminho_saida).with_name("temp_lista_arquivos.txt")
     try:
-        resultado = subprocess.run(comando, stdout=subprocess.PIPE, text=True, check=True)
-        return float(resultado.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as e:
-        print(f"⚠️ Erro ao obter duração de '{os.path.basename(caminho_arquivo)}': {e}")
-        return 0.0
-
-def unificar_arquivos_audio_ffmpeg(lista_arquivos_temp: list, arquivo_final: str) -> bool:
-    """Une arquivos de áudio temporários em um único arquivo final usando FFmpeg."""
-    if not lista_arquivos_temp:
-        print("⚠️ Nenhum arquivo de áudio para unificar.")
-        return False
-    
-    dir_saida = Path(arquivo_final).parent
-    dir_saida.mkdir(exist_ok=True)
-    lista_txt_path = dir_saida / f"_{Path(arquivo_final).stem}_filelist.txt"
-
-    try:
-        with open(lista_txt_path, "w", encoding='utf-8') as f_list:
-            for temp_file in lista_arquivos_temp:
-                safe_path = str(Path(temp_file).resolve()).replace("'", r"\'")
-                f_list.write(f"file '{safe_path}'\n")
+        with open(arquivo_lista, 'w', encoding='utf-8') as f:
+            for arquivo in lista_arquivos_entrada:
+                # Escapa os caminhos com aspas e barras duplas
+                f.write(f"file '{Path(arquivo).as_posix()}'\n")
         
-        comando = [
-            config.FFMPEG_BIN, '-y', '-f', 'concat', '-safe', '0',
-            '-i', str(lista_txt_path), 
-            '-c', 'copy',
-            arquivo_final
+        # Executa o FFmpeg para concatenar
+        cmd = [
+            config.FFMPEG_BIN, 
+            '-f', 'concat', 
+            '-safe', '0', 
+            '-i', str(arquivo_lista),
+            '-c', 'copy',  # Cópia direta, sem re-encode
+            '-y',  # Substitui o arquivo de saída se já existir
+            caminho_saida
         ]
-        return _executar_ffmpeg_comando(comando, f"Unificação de áudio para {Path(arquivo_final).name}")
+        
+        # Executa o comando e verifica o resultado
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        if not success:
+            print(f"❌ Erro ao unificar arquivos com FFmpeg: {result.stderr}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao unificar arquivos: {e}")
+        return False
     finally:
-        lista_txt_path.unlink(missing_ok=True)
+        # Limpa o arquivo temporário
+        if arquivo_lista.exists():
+            arquivo_lista.unlink()
 
+<<<<<<< HEAD
+def aplicar_efeito_audibilizar(caminho_entrada: str, caminho_saida: str, velocidade: float) -> bool:
+    """
+    Aplica um efeito de velocidade a um arquivo de áudio/vídeo.
+    """
+    try:
+        cmd = [
+            config.FFMPEG_BIN,
+            '-i', caminho_entrada,
+            '-filter:a', f'atempo={velocidade}',  # Ajusta velocidade do áudio
+            '-y',
+            caminho_saida
+=======
 def criar_video_com_audio_ffmpeg(audio_path, video_path, duracao_segundos, resolucao_str):
     """Cria um vídeo com tela preta a partir de um áudio."""
     if duracao_segundos <= 0:
@@ -232,11 +172,130 @@ def reproduzir_audio(caminho_audio: str):
             '-t', str(duracao_segmento_seg),
             '-c', 'copy', # Rápido, sem reencodar
             output_path_parte
+>>>>>>> bb19449059105991693c172edf8db34073a419fe
         ]
-        if _executar_ffmpeg_comando(comando, f"Criação da parte {i+1}/{num_partes}"):
-            arquivos_gerados.append(output_path_parte)
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        if not success:
+            print(f"❌ Erro ao aplicar efeito de velocidade: {result.stderr}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao aplicar efeito de velocidade: {e}")
+        return False
+
+def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolucao: str) -> bool:
+    """
+    Cria um vídeo (MP4) com tela preta e o áudio fornecido.
+    """
+    try:
+        # Extrai o diretório e nome base do arquivo
+        dir_saida = Path(caminho_saida).parent
+        nome_arquivo = Path(caminho_saida).name
+        
+        # Cria um vídeo preto com o áudio do arquivo
+        cmd = [
+            config.FFMPEG_BIN,
+            '-f', 'lavfi',  # Fonte de vídeo virtual (cor)
+            '-i', f'color=c=black:s={resolucao}:d=10',  # Cria um vídeo preto com duração de 10 segundos
+            '-i', caminho_audio,  # Arquivo de áudio
+            '-shortest',  # Usa o comprimento do arquivo mais curto (áudio)
+            '-c:v', 'libx264',  # Codec de vídeo
+            '-c:a', 'aac',      # Codec de áudio
+            '-y',  # Substitui o arquivo de saída
+            caminho_saida
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        if not success:
+            print(f"❌ Erro ao criar vídeo a partir de áudio: {result.stderr}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao criar vídeo: {e}")
+        return False
+
+def aplicar_normalizacao_volume(caminho_entrada: str, caminho_saida: str) -> bool:
+    """
+    Normaliza o volume de um arquivo de áudio.
+    """
+    try:
+        cmd = [
+            config.FFMPEG_BIN,
+            '-i', caminho_entrada,
+            '-af', 'loudnorm',  # Filtro de normalização de volume
+            '-y',
+            caminho_saida
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        if not success:
+            print(f"❌ Erro ao normalizar volume: {result.stderr}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao normalizar volume: {e}")
+        return False
+
+def dividir_arquivo_audio_video(caminho_entrada: str, pasta_saida: str, duracao_partes_segundos: int) -> bool:
+    """
+    Divide um arquivo de áudio/vídeo em partes menores com base em duração especificada.
+    """
+    try:
+        nome_base = Path(caminho_entrada).stem
+        extensao = Path(caminho_entrada).suffix
+        
+        cmd = [
+            config.FFMPEG_BIN,
+            '-i', caminho_entrada,
+            '-c', 'copy',  # Cópia direta sem re-encode
+            '-segment_time', str(duracao_partes_segundos),
+            '-f', 'segment',  # Formato de segmento
+            '-y',
+            os.path.join(pasta_saida, f"{nome_base}_parte_%03d{extensao}")
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        if not success:
+            print(f"❌ Erro ao dividir arquivo: {result.stderr}")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao dividir arquivo: {e}")
+        return False
+
+def obter_duracao_arquivo(caminho_arquivo: str) -> float:
+    """
+    Obtém a duração de um arquivo de mídia em segundos.
+    """
+    try:
+        cmd = [
+            config.FFPROBE_BIN,
+            '-v', 'quiet',
+            '-show_entries', 'format=duration',
+            '-of', 'csv=p=0',
+            caminho_arquivo
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
         else:
-            print(f"    ❌ Falha ao criar parte {i+1}. A divisão será interrompida.")
-            break
+            print(f"⚠️ Não foi possível obter duração do arquivo: {caminho_arquivo}")
+            return 0.0
             
-    return arquivos_gerados
+    except Exception as e:
+        print(f"⚠️ Erro ao obter duração do arquivo: {e}")
+        return 0.0

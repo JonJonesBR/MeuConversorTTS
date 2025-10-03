@@ -113,7 +113,7 @@ def _corrigir_hifenizacao_quebras(texto):
     return re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', texto)
 
 def _remover_metadados_pdf(texto):
-    return re.sub(r'^\s*[\w\d_-]+\.indd\s+\d+\s+\d{2}/\d{2}/\d{2,4}\s+\d{1,2}:\d{2}(:\d{2})?\s*([AP]M)?\s*$', '', texto, flags=re.MULTILINE)
+    return re.sub(r'^\s*[\w\d_-]+\.[indd]\s+\d+\s+\d{2}/\d{2}/\d{2,4}\s+\d{1,2}:\d{2}(?:\d{2})?\s*(?:[AP]M)?\s*$', '', texto, flags=re.MULTILINE)
 
 def _expandir_abreviacoes_numeros(texto: str) -> str:
     """Expande abreviações comuns e converte números cardinais e monetários."""
@@ -176,7 +176,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     """
     Orquestra todas as etapas de limpeza e formatação do texto.
     """
-    print("⚙️ Aplicando formatações avançadas ao texto...")
+    print("Aplicando formatacoes avancadas ao texto...")
     texto = texto_bruto
 
     texto = unicodedata.normalize('NFKC', texto)
@@ -217,7 +217,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     texto = '\n\n'.join(paragrafos_processados)
 
     texto = re.sub(r'[ \t]+', ' ', texto)
-    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto)
+    texto = re.sub(r'(?<!\n)\n(?!\\n)', ' ', texto)
     texto = re.sub(r'\n{3,}', '\n\n', texto)
 
     texto = _remover_metadados_pdf(texto)
@@ -243,7 +243,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
              if termina_abreviacao_conhecida or termina_sigla_padrao: nao_quebrar = True
         if buffer_segmento: buffer_segmento += " " + segmento_completo
         else: buffer_segmento = segmento_completo
-        if not nao_quebrar: texto_reconstruido += buffer_segmento + "\n\n"; buffer_segmento = ""
+        if not nao_quebrar: texto_reconstruido += buffer_segmento + "\n\n" ; buffer_segmento = ""
     if buffer_segmento:
          texto_reconstruido += buffer_segmento
          if not re.search(r'[.!?…)]$', buffer_segmento): texto_reconstruido += "."
@@ -277,5 +277,10 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     texto = re.sub(r'[ \t]+', ' ', texto).strip()
     texto = re.sub(r'\n{2,}', '\n\n', texto)
 
+<<<<<<< HEAD
+    print("Formatacao de texto concluida.")
+    return texto.strip()
+=======
     print("✅ Formatação de texto concluída.")
     return texto.strip()
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

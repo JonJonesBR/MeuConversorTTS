@@ -136,4 +136,10 @@ Dica: Após atualizar, é uma boa prática reativar o ambiente virtual e reinsta
 ## 🤝 Como Contribuir
 Este projeto é aberto a contribuições! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, sinta-se à vontade para abrir uma Issue ou enviar um Pull Request.
 
+<<<<<<< HEAD
+Agora que o projeto é modular, ficou muito mais fácil contribuir! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, abra uma issue ou envie um pull request.
+
+⭐ Se este projeto foi útil para você, deixe uma estrela no GitHub! ⭐
+=======
 ⭐ Se este projeto foi útil para você, que tal deixar uma estrela no GitHub? Isso ajuda a dar mais visibilidade ao projeto! ⭐
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

@@ -19,7 +19,7 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     Divide o texto em partes menores para TTS, respeitando parágrafos e frases
     para manter um fluxo mais natural e evitar erros na API.
     """
-    print(f"⚙️ Dividindo texto em chunks de até {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
+    print(f"Dividindo texto em chunks de ate {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
     
     partes_iniciais = texto_processado.split('\n\n')
     partes_finais = []
@@ -56,7 +56,7 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
         else:
             partes_super_finais.append(parte)
 
-    print(f"✅ Texto dividido em {len(partes_super_finais)} parte(s).")
+    print(f"Texto dividido em {len(partes_super_finais)} parte(s).")
     return [p for p in partes_super_finais if p.strip()]
 
 
@@ -82,6 +82,13 @@ async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, v
         if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
             return True, str(caminho_saida)
         else:
+<<<<<<< HEAD
+            print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
+            path_saida_obj.unlink(missing_ok=True)
+            return False
+            
+    return False
+=======
             tamanho = path_saida_obj.stat().st_size if path_saida_obj.exists() else 0
             return False, f"Ficheiro de áudio gerado é inválido (tamanho: {tamanho} bytes)."
 
@@ -93,3 +100,4 @@ async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, v
         return False, f"Erro inesperado: {type(e).__name__} - {e}"
 
 
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

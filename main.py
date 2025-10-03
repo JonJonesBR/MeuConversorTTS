@@ -92,4 +92,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n\n⚠️ Programa interrompido.")
     finally:
+<<<<<<< HEAD
         print("🔚 Script finalizado.")
+=======
+        print("🔚 Script finalizado.")
+>>>>>>> bb19449059105991693c172edf8db34073a419fe

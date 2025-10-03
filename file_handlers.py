@@ -58,9 +58,9 @@ def salvar_arquivo_texto(caminho_arquivo: str, conteudo: str):
         os.makedirs(os.path.dirname(caminho_arquivo), exist_ok=True)
         with open(caminho_arquivo, 'w', encoding='utf-8') as f:
             f.write(conteudo)
-        print(f"✅ Arquivo salvo: {caminho_arquivo}")
+        print(f"Arquivo salvo: {caminho_arquivo}")
     except Exception as e:
-        print(f"❌ Erro ao salvar arquivo '{caminho_arquivo}': {e}")
+        print(f"Erro ao salvar arquivo '{caminho_arquivo}': {e}")
 
 def limpar_nome_arquivo(nome: str) -> str:
     """Limpa e sanitiza um nome de arquivo, removendo caracteres especiais."""
@@ -89,16 +89,16 @@ def converter_pdf_para_txt(caminho_pdf: str, caminho_txt: str) -> bool:
     try:
         comando = [pdftotext_cmd, "-layout", "-enc", "UTF-8", caminho_pdf, caminho_txt]
         subprocess.run(comando, check=True, capture_output=True)
-        print(f"✅ PDF convertido para TXT: {caminho_txt}")
+        print(f"PDF convertido para TXT: {caminho_txt}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erro ao converter PDF: {e.stderr.decode(errors='ignore')}")
+        print(f"Erro ao converter PDF: {e.stderr.decode(errors='ignore')}")
         return False
     except FileNotFoundError:
-        print(f"❌ Comando '{pdftotext_cmd}' não encontrado. A instalação pode ter falhado.")
+        print(f"Comando '{pdftotext_cmd}' nao encontrado. A instalacao pode ter falhado.")
         return False
     except Exception as e:
-        print(f"❌ Erro inesperado ao converter PDF: {e}")
+        print(f"Erro inesperado ao converter PDF: {e}")
         return False
 
 def extrair_texto_de_epub(caminho_epub: str) -> str:
@@ -108,7 +108,7 @@ def extrair_texto_de_epub(caminho_epub: str) -> str:
         with zipfile.ZipFile(caminho_epub, 'r') as epub_zip:
             # Lógica para encontrar a ordem dos arquivos (spine)
             container = epub_zip.read('META-INF/container.xml').decode('utf-8')
-            match = re.search(r'full-path="([^"]+)"', container)
+            match = re.search(r'full-path="([^\"]+)"', container)
             if match is None:
                 print("⚠️ Não foi possível encontrar o caminho do arquivo OPF no EPUB.")
                 return ""
@@ -116,8 +116,8 @@ def extrair_texto_de_epub(caminho_epub: str) -> str:
             opf_content = epub_zip.read(opf_path).decode('utf-8')
             opf_dir = os.path.dirname(opf_path)
             
-            spine_ids = [m.group(1) for m in re.finditer(r'<itemref\s+idref="([^"]+)"', opf_content)]
-            manifest_files = {m.group(1): m.group(2) for m in re.finditer(r'<item\s+id="([^"]+)"\s+href="([^"]+)"\s+media-type="application/xhtml\+xml"', opf_content)}
+            spine_ids = [m.group(1) for m in re.finditer(r'<itemref\s+idref="([^\"]+)"', opf_content)]
+            manifest_files = {m.group(1): m.group(2) for m in re.finditer(r'<item\s+id="([^\"]+)"\s+href="([^\"]+)"\s+media-type="application/xhtml\+xml"', opf_content)}
             
             arquivos_ordenados = []
             for item_id in spine_ids:
