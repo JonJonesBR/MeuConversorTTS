@@ -112,9 +112,14 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
         if dir_atual_termux.is_dir():
             dir_atual = dir_atual_termux
         else:
-            dir_atual = Path("/storage/emulated/0")
+            # Try common Termux paths
+            for path in [Path("/storage/emulated/0"), Path("/storage/emulated")]:
+                if path.is_dir():
+                    dir_atual = path
+                    break
             
-    if not dir_atual.is_dir(): dir_atual = Path.home()
+    if not dir_atual.is_dir():
+        dir_atual = Path.home()
 
     while not shared_state.CANCELAR_PROCESSAMENTO:
         limpar_tela()
@@ -123,7 +128,7 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
         
         itens = []
         try:
-            if dir_atual.parent != dir_atual and str(dir_atual) != '/storage/emulated/0':
+            if dir_atual.parent != dir_atual and str(dir_atual) not in ['/storage/emulated/0', '/storage/emulated']:
                 if sistema['termux'] and str(dir_atual.parent) == '/storage/emulated':
                     pass
                 else:

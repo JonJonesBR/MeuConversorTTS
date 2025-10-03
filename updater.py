@@ -56,3 +56,19 @@ def check_for_updates_git():
         if "not a git repository" in error_message.lower():
              return "erro", "❌ Esta não parece ser uma instalação via 'git clone'."
         return "erro", f"❌ Ocorreu um erro ao comunicar com o Git:\n{error_message}"
+
+async def verificar_e_atualizar():
+    """
+    Verifica por atualizações e aplica se disponível.
+    """
+    status, message = check_for_updates_git()
+    print(message)
+    if status == "atualizacao_disponivel":
+        print("🔄 A aplicar atualização...")
+        try:
+            subprocess.run(["git", "pull"], capture_output=True, check=True, text=True, cwd=Path.cwd())
+            print("✅ Atualização aplicada com sucesso!")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Erro ao aplicar atualização: {e}")
+    elif status == "divergente":
+        print("⚠️ Divergência detectada. Recomenda-se reinstalar o script.")
