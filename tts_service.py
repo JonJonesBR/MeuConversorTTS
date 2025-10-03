@@ -82,13 +82,6 @@ async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, v
         if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
             return True, str(caminho_saida)
         else:
-<<<<<<< HEAD
-            print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
-            path_saida_obj.unlink(missing_ok=True)
-            return False
-            
-    return False
-=======
             tamanho = path_saida_obj.stat().st_size if path_saida_obj.exists() else 0
             return False, f"Ficheiro de áudio gerado é inválido (tamanho: {tamanho} bytes)."
 
@@ -100,4 +93,32 @@ async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, v
         return False, f"Erro inesperado: {type(e).__name__} - {e}"
 
 
->>>>>>> bb19449059105991693c172edf8db34073a419fe
+async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: int = 1, total: int = 1) -> bool:
+    """
+    Converte um único chunk de texto para áudio TTS com tentativas múltiplas.
+    Retorna True em caso de sucesso, False em caso de falha.
+    """
+    path_saida_obj = Path(caminho_saida)
+    path_saida_obj.unlink(missing_ok=True)
+    
+    for tentativa in range(config.MAX_TTS_TENTATIVAS):
+        if shared_state.CANCELAR_PROCESSAMENTO:
+            return False
+            
+        try:
+            communicate = edge_tts.Communicate(text=texto, voice=voz)
+            await communicate.save(caminho_saida)
+
+            if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
+                return True
+            else:
+                path_saida_obj.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"⚠️ Tentativa {tentativa+1} falhou para chunk {indice}/{total}: {e}")
+            path_saida_obj.unlink(missing_ok=True)
+            if tentativa == config.MAX_TTS_TENTATIVAS - 1:
+                print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
+                return False
+            await asyncio.sleep(2)  # Espera entre tentativas
+    
+    return False
