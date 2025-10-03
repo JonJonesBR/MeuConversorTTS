@@ -20,15 +20,19 @@ def verificar_permissoes_termux():
     """Verifica se as permissões de armazenamento estão concedidas no Termux."""
     sistema = system_utils.detectar_sistema()
     if sistema['termux']:
-        storage_path = Path("/storage/emulated/0")
-        if not storage_path.is_dir():
+        # Check multiple possible storage paths
+        possible_paths = [Path("/storage/emulated/0"), Path("/storage/emulated")]
+        storage_accessible = any(path.is_dir() for path in possible_paths)
+        
+        if not storage_accessible:
             print("❌ Permissão de armazenamento não concedida no Termux.")
-            print("Para conceder, execute: termux-setup-storage")
-            print("E responda 'sim' quando solicitado.")
+            print("Para conceder, execute no Termux: termux-setup-storage")
+            print("E responda 'Allow' quando solicitado pelo sistema.")
             input("Pressione ENTER após conceder a permissão para continuar...")
             # Verifica novamente após o usuário conceder
-            if not storage_path.is_dir():
-                print("❌ Ainda não foi possível acessar o armazenamento. Saindo.")
+            storage_accessible = any(path.is_dir() for path in possible_paths)
+            if not storage_accessible:
+                print("❌ Ainda não foi possível acessar o armazenamento. Certifique-se de conceder as permissões e tente novamente.")
                 sys.exit(1)
         else:
             print("✅ Permissões de armazenamento verificadas.")

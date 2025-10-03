@@ -1,55 +1,8 @@
-Erros identificados durante a utilização do script: 
-
-VERIFICAR ATUALIZAÇÕES ---                    
-❌ Ocorreu um erro inesperado no loop principal: module 'updater' has no attribute 'verificar_e_atualizar'
-Traceback (most recent call last):                     File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 58, in main_loop
-    await cli_ui.atualizar_script()
-  File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 524, in atualizar_script
-    await updater.verificar_e_atualizar()
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: module 'updater' has no attribute 'verificar_e_atualizar'
-Pressione ENTER para tentar continuar...
-
-SELEÇÃO DE FICHEIRO (Formatos: .mp3, .wav, .m4a, .mp4, .mkv, .mov, .avi)                                                                                    Diretório atual: /storage/emulated
-                                                     ❌ Ocorreu um erro inesperado no loop principal: [Errno 2] No such file or directory: '/storage/emulated'
-Traceback (most recent call last):
-  File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 54, in main_loop
-    await cli_ui.menu_melhorar_audio_video()
-  File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 455, in menu_melhorar_audio_video
-    caminho_arquivo = await _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=extensoes_media)                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                                  File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 132, in _navegador_de_sistema
+SELEÇÃO DE FICHEIRO (Formatos: .txt, .pdf, .epub) 
+Diretório atual: /storage/emulated                                                                        ❌ Ocorreu um erro inesperado no loop principal: [Errno 2] No such file or directory: '/storage/emulated' Traceback (most recent call last):                     File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 48, in main_loop                      opcoes_principais = {
+                ^^^^^^^^^^                             File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 283, in iniciar_conversao_tts       caminho_arquivo_orig = await _navegador_de_sistema(selecionar_pasta=False)                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                              File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 137, in _navegador_de_sistema
     for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data/data/com.termux/files/usr/lib/python3.12/pathlib.py", line 1056, in iterdir
-    for name in os.listdir(self):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^       File "/data/data/com.termux/files/usr/lib/python3.12/pathlib.py", line 1056, in iterdir                     for name in os.listdir(self):
                 ^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/storage/emulated'
-Pressione ENTER para tentar continuar...
-
-TESTE DE VOZES TTS ---
-Selecione uma voz da lista para ouvir um exemplo.
-1. ThalitaMultilingualNeural                         2. FranciscaNeural
-3. AntonioNeural
-Escolha uma voz para testar (ou 0 para voltar) [0-3]: 1                                                   
------------------------------------                  Voz selecionada: ThalitaMultilingualNeural           Velocidade: 1.0                                      Digite o texto para teste (ou 'V' para voltar): teste                                                     🔄 A converter texto para áudio, aguarde...          ▶️ A reproduzir áudio...                              
-⚠️  ffplay não encontrado. Não é possível reproduzir o áudio de teste.
-    O ficheiro foi salvo em: /data/data/com.termux/files/home/temp_tts_test_1759521317.mp3                
-Deseja testar outro texto com esta mesma voz? (S/n):
-
-SELEÇÃO DE PASTA
-
-Diretório atual: /storage/emulated                   
-❌ Ocorreu um erro inesperado no loop principal: [Errno 2] No such file or directory: '/storage/emulated' Traceback (most recent call last):                     File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 50, in main_loop                      await cli_ui.iniciar_conversao_em_lote() # <- NOVA CHAMADA                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^           File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 300, in iniciar_conversao_em_lote                                                        caminho_pasta = await _navegador_de_sistema(selecionar_pasta=True)                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                      File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 132, in _navegador_de_sistema
-    for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^       File "/data/data/com.termux/files/usr/lib/python3.12/pathlib.py", line 1056, in iterdir
-    for name in os.listdir(self):
-                ^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/storage/emulated'
-Pressione ENTER para tentar continuar...
-
-SELEÇÃO DE FICHEIRO (Formatos: .txt, .pdf, .epub)                                                      Diretório atual: /storage/emulated                                                                        ❌ Ocorreu um erro inesperado no loop principal: [Errno 2] No such file or directory: '/storage/emulated' Traceback (most recent call last):                     File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 48, in main_loop                      await cli_ui.iniciar_conversao_tts()               File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 278, in iniciar_conversao_tts       caminho_arquivo_orig = await _navegador_de_sistema(selecionar_pasta=False)                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 132, in _navegador_de_sistema
-    for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):                               ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data/data/com.termux/files/usr/lib/python3.12/pathlib.py", line 1056, in iterdir
-    for name in os.listdir(self):                                    ^^^^^^^^^^^^^^^^
 FileNotFoundError: [Errno 2] No such file or directory: '/storage/emulated'
 Pressione ENTER para tentar continuar...

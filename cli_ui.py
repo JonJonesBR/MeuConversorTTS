@@ -108,20 +108,34 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
     sistema = system_utils.detectar_sistema()
     dir_atual = Path.home() / 'Downloads'
     if sistema['termux']:
-        dir_atual_termux = Path.home() / 'storage' / 'shared'
-        if dir_atual_termux.is_dir():
-            dir_atual = dir_atual_termux
+        # Try common Termux storage paths in order of preference
+        possible_paths = [
+            Path.home() / 'storage' / 'shared',
+            Path("/storage/emulated/0"),
+            Path("/storage/emulated"),
+            Path.home() / 'Downloads'  # Fallback to Downloads if nothing else works
+        ]
+        for path in possible_paths:
+            if path.is_dir():
+                dir_atual = path
+                break
         else:
-            # Try common Termux paths
-            for path in [Path("/storage/emulated/0"), Path("/storage/emulated")]:
-                if path.is_dir():
-                    dir_atual = path
-                    break
-            
-    if not dir_atual.is_dir():
-        dir_atual = Path.home()
+            # If none of the paths exist, use home as last resort
+            dir_atual = Path.home()
+    else:
+        # For non-Termux systems, ensure Downloads exists or use home
+        if not dir_atual.is_dir():
+            dir_atual = Path.home()
 
     while not shared_state.CANCELAR_PROCESSAMENTO:
+        # Ensure dir_atual is valid before proceeding
+        if not dir_atual.is_dir():
+            print(f"❌ Diretório inválido: {dir_atual}. Usando diretório home.")
+            dir_atual = Path.home()
+            if not dir_atual.is_dir():
+                print("❌ Não foi possível encontrar um diretório válido. Saindo.")
+                return None
+        
         limpar_tela()
         print(f"📂 SELEÇÃO DE {prompt_titulo} {prompt_formatos}")
         print(f"\nDiretório atual: {dir_atual}")
