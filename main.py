@@ -8,6 +8,7 @@ import asyncio
 import signal
 import sys
 from pathlib import Path
+import aioconsole
 
 # Importa dos nossos outros módulos
 import cli_ui
@@ -70,7 +71,7 @@ async def main_loop():
             print(f"\n❌ Ocorreu um erro inesperado no loop principal: {e_main}")
             import traceback
             traceback.print_exc()
-            await cli_ui.aioconsole.ainput("Pressione ENTER para tentar continuar...")
+            await aioconsole.ainput("Pressione ENTER para tentar continuar...")
 
 if __name__ == "__main__":
     if Path(__file__).name == "code.py":
@@ -92,8 +93,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n\n⚠️ Programa interrompido.")
     finally:
-<<<<<<< HEAD
         print("🔚 Script finalizado.")
-=======
-        print("🔚 Script finalizado.")
->>>>>>> bb19449059105991693c172edf8db34073a419fe

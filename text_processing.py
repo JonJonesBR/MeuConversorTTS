@@ -277,10 +277,5 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     texto = re.sub(r'[ \t]+', ' ', texto).strip()
     texto = re.sub(r'\n{2,}', '\n\n', texto)
 
-<<<<<<< HEAD
-    print("Formatacao de texto concluida.")
-    return texto.strip()
-=======
     print("✅ Formatação de texto concluída.")
     return texto.strip()
->>>>>>> bb19449059105991693c172edf8db34073a419fe

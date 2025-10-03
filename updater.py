@@ -21,23 +21,13 @@ def check_for_updates_git():
     Retorna um status: 'atualizado', 'atualizacao_disponivel', 'erro' ou 'divergente'.
     """
     try:
-<<<<<<< HEAD
-        print("A verificar o estado do repositorio local...")
-        # Garante que o estado local está limpo antes de verificar
-=======
         print("🔎 A verificar o estado do repositório local...")
->>>>>>> bb19449059105991693c172edf8db34073a419fe
         subprocess.run(
             ["git", "status"],
             capture_output=True, check=True, text=True, cwd=Path.cwd()
         )
 
-<<<<<<< HEAD
-        print("A contactar o GitHub para procurar atualizacoes...")
-        # Busca as últimas alterações do repositório remoto sem as aplicar
-=======
         print("📡 A contactar o GitHub para procurar atualizações...")
->>>>>>> bb19449059105991693c172edf8db34073a419fe
         subprocess.run(
             ["git", "fetch"],
             capture_output=True, check=True, text=True, cwd=Path.cwd()

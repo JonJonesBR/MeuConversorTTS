@@ -114,12 +114,7 @@ def instalar_poppler_windows():
         # Tenta adicionar ao PATH da sessão atual
         os.environ['PATH'] = f"{bin_path};{os.environ['PATH']}"
         if shutil.which("pdftotext.exe"):
-<<<<<<< HEAD
-            print("Poppler agora esta acessivel nesta sessao.")
-            # O ideal seria instruir o usuário a adicionar permanentemente, mas para o script rodar, isso basta.
-=======
             print("✅ Poppler agora está acessível nesta sessão.")
->>>>>>> bb19449059105991693c172edf8db34073a419fe
             print("   OBS: Pode ser necessário adicionar o diretório acima ao PATH do Windows manualmente para uso futuro.")
             return True
         else:

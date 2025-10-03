@@ -30,9 +30,11 @@ Abra o **Prompt de Comando (cmd)**, cole o comando abaixo e pressione Enter. Ele
 ```powershell
 curl -L -o instalar-windows.bat https://raw.githubusercontent.com/JonJonesBR/MeuConversorTTS/main/instalar-windows.bat && instalar-windows.bat
 ```
+
 Nota: O script irá verificar se você tem Python e Git. Ele também avisará sobre a necessidade de instalar FFmpeg e Poppler manualmente.
 
 ### 🐧 Linux (Ubuntu/Debian)
+
 Abra o terminal e execute os seguintes comandos:
 
 ```bash
@@ -45,6 +47,7 @@ chmod +x instalar-linux.sh
 ```
 
 ### 📱 Android (Termux)
+
 Abra o Termux e execute os seguintes comandos:
 
 ```bash
@@ -57,6 +60,7 @@ chmod +x instalar-android.sh
 ```
 
 ## ▶️ Como Executar o Programa
+
 Após a instalação (automática ou manual), os passos para executar são sempre os mesmos:
 
 Navegue até a pasta do projeto:
@@ -76,22 +80,26 @@ Execute o script principal:
 - No Linux/Termux: `python3 main.py`
 
 ## 🔧 Instalação Manual (Para Usuários Avançados)
-<details>
-<summary>Clique para expandir as instruções de instalação manual</summary>
+
+**Nota:** Apenas para usuários que sabem o que estão fazendo.
 
 ### 1. Pré-requisitos
+
 **Windows**:
+
 - Instale Python (marque "Add Python to PATH").
 - Instale Git.
 - Instale FFmpeg e Poppler e adicione-os ao PATH do sistema.
 
 **Linux (Ubuntu/Debian):**
+
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3 git ffmpeg poppler-utils python3-venv
 ```
 
 **Android (Termux):**
+
 ```bash
 pkg update && pkg upgrade -y
 pkg install -y python git ffmpeg poppler
@@ -99,6 +107,7 @@ termux-setup-storage
 ```
 
 ### 2. Comandos de Instalação
+
 Abra o terminal/cmd, e execute os comandos abaixo, um por um.
 
 ```bash
@@ -123,23 +132,21 @@ source venv/bin/activate
 # 5. Instale as dependências Python
 pip install -r requirements.txt
 ```
-</details>
 
 ## 🔄 Como Atualizar o Projeto
+
 Com o git, atualizar é muito simples. Abra o terminal na pasta do projeto (MeuConversorTTS) e execute o comando:
 
 ```bash
 git pull origin main
 ```
+
 Dica: Após atualizar, é uma boa prática reativar o ambiente virtual e reinstalar as dependências com `pip install -r requirements.txt` para garantir que todas as novas bibliotecas sejam instaladas.
 
 ## 🤝 Como Contribuir
+
 Este projeto é aberto a contribuições! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, sinta-se à vontade para abrir uma Issue ou enviar um Pull Request.
 
-<<<<<<< HEAD
 Agora que o projeto é modular, ficou muito mais fácil contribuir! Se você encontrou um bug, tem sugestões de melhoria ou deseja adicionar novas funcionalidades, abra uma issue ou envie um pull request.
 
 ⭐ Se este projeto foi útil para você, deixe uma estrela no GitHub! ⭐
-=======
-⭐ Se este projeto foi útil para você, que tal deixar uma estrela no GitHub? Isso ajuda a dar mais visibilidade ao projeto! ⭐
->>>>>>> bb19449059105991693c172edf8db34073a419fe
