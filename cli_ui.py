@@ -16,19 +16,19 @@ import requests
 import aioconsole
 from tqdm import tqdm
 
- # Importa de todos os nossos outros módulos
- import config
- import shared_state
- import system_utils
- import file_handlers
- import text_processing
- import tts_service
- import ffmpeg_utils
- import settings_manager
- import updater
+  # Importa de todos os nossos outros módulos
+import config
+import shared_state
+import system_utils
+import file_handlers
+import text_processing
+import tts_service
+import ffmpeg_utils
+import settings_manager
+import updater
 
  # Lista de funções públicas para exportação
- __all__ = [
+__all__ = [
      'limpar_tela',
      'obter_opcao_numerica',
      'obter_confirmacao',
@@ -40,7 +40,7 @@ from tqdm import tqdm
      'menu_gerenciar_configuracoes',
      'atualizar_script',
      'exibir_ajuda'
- ]
+]
 
 # ================== FUNÇÕES GENÉRICAS DE UI ==================
 
@@ -103,7 +103,7 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
         extensoes_permitidas = ['.txt', '.pdf', '.epub']
     
     prompt_titulo = "PASTA" if selecionar_pasta else "FICHEIRO"
-    prompt_formatos = "" if selecionar_pasta else f"(Formatos: {', '.join(extensoes_permitidas)})")
+    prompt_formatos = "" if selecionar_pasta else f"(Formatos: {', '.join(extensoes_permitidas)})"
     
     sistema = system_utils.detectar_sistema()
     dir_atual = Path.home() / 'Downloads'
@@ -215,7 +215,7 @@ async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
         tarefa = asyncio.create_task(run_conversion(parte, voz, arquivos_mp3_temporarios[i], i + 1, len(partes_texto)))
         tarefas.append(tarefa)
 
-    with tqdm(total=len(tarefas), desc=f"   TTS para '{nome_base_audio[:15]}...'"') as pbar:
+    with tqdm(total=len(tarefas), desc=f"   TTS para {nome_base_audio[:15]}...") as pbar:
         for f in asyncio.as_completed(tarefas):
             await f
             pbar.update(1)
@@ -514,7 +514,7 @@ Este script foi desenhado para facilitar a conversão de texto para áudio (TTS)
 - CANCELAR: Pressione CTRL+C a qualquer momento para cancelar a operação atual.
 - DEPENDÊNCIAS: Se algo não funcionar, certifique-se que executou o script de instalação correto (instalar-*.sh ou .bat) para instalar todas as dependências como o FFmpeg.
 
-")
+""")
     await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def atualizar_script():
@@ -525,7 +525,7 @@ async def atualizar_script():
     await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def menu_gerenciar_configuracoes():
-    """Menu para gerenciar configurações do programa."""
+    """Menu para gerenciar configuracoes do programa."""
     limpar_tela()
     print("⚙️ MENU DE CONFIGURAÇÕES")
     
