@@ -1,8 +1,0 @@
-SELEÇÃO DE FICHEIRO (Formatos: .txt, .pdf, .epub) 
-Diretório atual: /storage/emulated                                                                        ❌ Ocorreu um erro inesperado no loop principal: [Errno 2] No such file or directory: '/storage/emulated' Traceback (most recent call last):                     File "/data/data/com.termux/files/home/MeuConversorTTS/main.py", line 48, in main_loop                      opcoes_principais = {
-                ^^^^^^^^^^                             File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 283, in iniciar_conversao_tts       caminho_arquivo_orig = await _navegador_de_sistema(selecionar_pasta=False)                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                              File "/data/data/com.termux/files/home/MeuConversorTTS/cli_ui.py", line 137, in _navegador_de_sistema
-    for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^       File "/data/data/com.termux/files/usr/lib/python3.12/pathlib.py", line 1056, in iterdir                     for name in os.listdir(self):
-                ^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: '/storage/emulated'
-Pressione ENTER para tentar continuar...
