@@ -59,8 +59,8 @@ def _executar_com_progresso(comando: list, duracao_total: float, desc: str) -> b
     )
 
     total_us = int(duracao_total * 1_000_000)
-    with tqdm(total=total_us, desc=desc, unit='s', unit_scale=True,
-              bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
+    with tqdm(total=total_us, desc=desc, unit='s', unit_scale=1/1000000,
+              bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]', ncols=80) as pbar:
         for linha in iter(processo.stdout.readline, ''):
             if 'out_time_ms' in linha:
                 try:
@@ -134,19 +134,25 @@ def unificar_arquivos_audio_ffmpeg(lista_arquivos: list, caminho_saida: str) -> 
     """Concatena uma lista de arquivos de áudio."""
     if not lista_arquivos: return False
 
-    print("Unificando arquivos de áudio...")
     caminho_lista = Path(caminho_saida).parent / "concat_list.txt"
-    with open(caminho_lista, "w", encoding='utf-8') as f:
-        for arquivo in lista_arquivos:
-            f.write(f"file '{Path(arquivo).as_posix()}'\n")
+    try:
+        # **BARRA DE PROGRESSO ADICIONADA AQUI**
+        # Mostra o progresso da escrita do arquivo de lista para o FFmpeg.
+        with open(caminho_lista, "w", encoding='utf-8') as f:
+            for arquivo in tqdm(lista_arquivos, desc="🎼 Unificando arquivos de áudio", unit=" arq", ncols=80):
+                f.write(f"file '{Path(arquivo).as_posix()}'\n")
 
-    comando = [
-        _obter_caminho_executavel('ffmpeg'), '-f', 'concat', '-safe', '0', '-i',
-        str(caminho_lista), '-c', 'copy', '-y', caminho_saida
-    ]
-    sucesso = _executar_comando_simples(comando)
-    caminho_lista.unlink()
-    return sucesso
+        comando = [
+            _obter_caminho_executavel('ffmpeg'), '-f', 'concat', '-safe', '0', '-i',
+            str(caminho_lista), '-c', 'copy', '-y', caminho_saida
+        ]
+        sucesso = _executar_comando_simples(comando)
+        return sucesso
+    finally:
+        # Garante que o arquivo de lista seja sempre excluído
+        if os.path.exists(caminho_lista):
+             caminho_lista.unlink()
+
 
 def reproduzir_audio(caminho_audio: str):
     """Reproduz um arquivo de áudio usando FFplay."""
@@ -178,5 +184,5 @@ def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolu
         caminho_saida
     ]
     
-    return _executar_com_progresso(comando, duracao, "Gerando Vídeo")
+    return _executar_com_progresso(comando, duracao, "🎬 Gerando Vídeo")
 
