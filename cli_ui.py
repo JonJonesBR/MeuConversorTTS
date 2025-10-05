@@ -84,23 +84,18 @@ async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
     """Exibe o banner do programa e um menu de opções."""
     limpar_tela()
 
-    largura_interna = 42  # Largura interna da caixa, sem as bordas
+    largura_interna = 42
 
-    def centralizar_texto(texto: str, largura: int) -> str:
-        """Centraliza o texto dentro de uma largura específica."""
-        if len(texto) >= largura:
-            return texto
-        espacos_total = largura - len(texto)
-        espacos_esquerda = espacos_total // 2
-        # espacos_direita = espacos_total - espacos_esquerda
-        return texto.center(largura)
+    def centralizar_texto(texto: str) -> str:
+        """Centraliza o texto dentro da largura interna definida."""
+        return texto.center(largura_interna)
 
     linha1 = "CONVERSOR TTS COMPLETO"
     linha2 = "Text-to-Speech + Melhoria de Áudio em PT-BR"
 
     print("╔════════════════════════════════════════════╗")
-    print(f"║ {centralizar_texto(linha1, largura_interna)} ║")
-    print(f"║ {centralizar_texto(linha2, largura_interna)} ║")
+    print(f"║ {centralizar_texto(linha1)} ║")
+    print(f"║ {centralizar_texto(linha2)} ║")
     print("╚════════════════════════════════════════════╝")
 
     print(f"\n--- {titulo_menu.upper()} ---")
@@ -438,8 +433,6 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
         '0': "Voltar"
     }
 
-    from config import RESOLUCOES_VIDEO
-
     while not shared_state.CANCELAR_PROCESSAMENTO:
         print("\nSelecione a melhoria que deseja aplicar:")
         for k, v in opcoes_melhoria.items(): print(f"{k}. {v}")
@@ -460,19 +453,24 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
             caminho_arquivo_saida = path_entrada.parent / nome_saida
             sucesso = ffmpeg_utils.normalizar_audio_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
         elif escolha == 3:
+            # Opções de resolução otimizadas para tamanho mínimo
+            RESOLUCOES_VIDEO_MIN = {
+                '1': ('256x144', "144p - Ficheiro Mínimo"),
+                '2': ('426x240', "240p - Ficheiro Pequeno")
+            }
             print("\nSelecione a resolução do vídeo de saída:")
-            for k, (res, desc) in RESOLUCOES_VIDEO.items(): print(f"{k}. {desc} ({res})")
+            for k, (res, desc) in RESOLUCOES_VIDEO_MIN.items():
+                print(f"{k}. {desc} ({res})")
             
-            res_escolhida = '3' # Padrão HD
-            inp = await aioconsole.ainput("Escolha (1-3, padrão 3): ")
-            if inp.strip() in RESOLUCOES_VIDEO:
+            res_escolhida = '1' # Padrão 144p
+            inp = await aioconsole.ainput("Escolha (1-2, padrão 1): ")
+            if inp.strip() in RESOLUCOES_VIDEO_MIN:
                 res_escolhida = inp.strip()
 
-            resolucao_str = RESOLUCOES_VIDEO[res_escolhida][0]
-            nome_saida = f"{path_entrada.stem}_video_preto.mp4"
+            resolucao_str = RESOLUCOES_VIDEO_MIN[res_escolhida][0]
+            nome_saida = f"{path_entrada.stem}_video_{RESOLUCOES_VIDEO_MIN[res_escolhida][1].split(' ')[0]}.mp4"
             caminho_arquivo_saida = path_entrada.parent / nome_saida
             
-            # Chamada à função com barra de progresso
             sucesso = ffmpeg_utils.criar_video_a_partir_de_audio(str(path_entrada), str(caminho_arquivo_saida), resolucao_str)
 
         if sucesso:
@@ -528,7 +526,7 @@ Este script foi desenhado para facilitar a conversão de texto para áudio (TTS)
     - Pode aplicar melhorias como:
         - Redução de Ruído: Ideal para limpar gravações de voz.
         - Normalização de Volume: Ajusta o volume para um nível padrão.
-        - Gerar MP4 com Tela Preta: Converte um áudio em vídeo, com barra de progresso.
+        - Gerar MP4 com Tela Preta: Converte um áudio em vídeo, otimizado para tamanho mínimo.
 
 5.  ⚙️ CONFIGURAÇÕES:
     - Altere a voz e velocidade padrão para as conversões.
