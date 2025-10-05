@@ -28,11 +28,29 @@ SIGLA_COM_PONTOS_RE = re.compile(r'\b([A-Z]\.\s*)+$')
 
 # ================== FUNÇÕES AUXILIARES DE PROCESSAMENTO DE TEXTO ==================
 
+def _remover_cabecalho_inicial(texto: str) -> str:
+    """
+    Encontra a primeira menção a um capítulo e remove todo o texto anterior a ele.
+    """
+    # Padrão flexível para encontrar "capítulo", "cap.", etc., seguido de um número ou palavra
+    padrao_primeiro_cap = re.compile(r'(cap[íi]tulo|cap\.?)\s+'
+                                     r'(?:(\d+|[IVXLCDM]+)|([A-ZÇÉÊÓÃÕa-zçéêóãõ]+))', re.IGNORECASE)
+    
+    match = padrao_primeiro_cap.search(texto)
+    
+    if match:
+        # Se encontrou um capítulo, retorna o texto a partir do início da correspondência
+        print("   -> Cabeçalho/Preâmbulo identificado e removido.")
+        return texto[match.start():]
+    
+    # Se não encontrou nenhum padrão de capítulo, retorna o texto original
+    return texto
+
+
 def _formatar_numeracao_capitulos(texto):
     """
-    Localiza títulos como 'Capítulo 1 Mesmo em pleno verão...' ou 'CAPÍTULO UM ...'
-    e converte para: '\n\nCAPÍTULO 1.\n\nMesmo em pleno verão...'
-    Também padroniza números por extenso para arábicos.
+    Localiza títulos e os formata corretamente, separando número e título.
+    Ex: 'CAPÍTULO UM O Menino...' -> '\n\nCAPÍTULO 1.\n\nO Menino Que Sobreviveu.\n\n'
     """
     def substituir_cap(match):
         tipo_cap = match.group(1).upper()
@@ -42,40 +60,35 @@ def _formatar_numeracao_capitulos(texto):
 
         numero_final = ""
         if numero_rom_arab:
-            numero_final = numero_rom_arab.upper()
+            numero_final = numero_rom_arab.strip().upper()
         elif numero_extenso:
             num_ext_upper = numero_extenso.strip().upper()
+            # Converte o número por extenso para um número arábico
             numero_final = config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(num_ext_upper, num_ext_upper)
 
+        # Garante que o cabeçalho sempre termine com um ponto.
         cabecalho = f"{tipo_cap} {numero_final}."
+        
         if titulo_opcional:
-            palavras_titulo = []
-            for p in titulo_opcional.split():
-                if p.isupper() and len(p) > 1:
-                    palavras_titulo.append(p)
-                else:
-                    palavras_titulo.append(p.capitalize())
-            titulo_formatado = " ".join(palavras_titulo)
-            return f"\n\n{cabecalho}\n\n{titulo_formatado}"
+            # Capitaliza o título de forma inteligente (Title Case)
+            titulo_formatado = titulo_opcional.title()
+            # Garante que o título também termine com um ponto.
+            if not titulo_formatado.endswith(('.', '!', '?')):
+                 titulo_formatado += "."
+            # Retorna o cabeçalho e o título em parágrafos separados
+            return f"\n\n{cabecalho}\n\n{titulo_formatado}\n\n"
+        
         return f"\n\n{cabecalho}\n\n"
 
+    # Regex atualizada para ser mais flexível com quebras de linha e capturar o título
     padrao = re.compile(
-        r'(?i)(cap[íi]tulo|cap\.?)\s+'
-        r'(?:(\d+|[IVXLCDM]+)|([A-ZÇÉÊÓÃÕa-zçéêóãõ]+))'
-        r'\s*[:\-.]?\s*'
-        r'(?=\S)([^\n]*)?',
+        r'(?i)(cap[íi]tulo|cap\.?)\s+'  # Grupo 1: "Capítulo" ou "Cap."
+        r'(?:(\d+|[IVXLCDM]+)|([A-ZÇÉÊÓÃÕa-zçéêóãõ]+))'  # Grupo 2 ou 3: Número arábico/romano OU por extenso
+        r'\s*[:\-.]?\s*\n?\s*' # Separadores e quebra de linha opcional
+        r'([^\n]+)', # Grupo 4: O título do capítulo (o resto da linha)
         re.IGNORECASE
     )
     texto = padrao.sub(substituir_cap, texto)
-
-    def substituir_extenso_com_titulo(match):
-        num_ext = match.group(1).strip().upper()
-        titulo = match.group(2).strip().title()
-        numero = config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(num_ext, num_ext)
-        return f"CAPÍTULO {numero}: {titulo}"
-
-    padrao_extenso_titulo = re.compile(r'CAP[IÍ]TULO\s+([A-ZÇÉÊÓÃÕ]+)\s*[:\-]\s*(.+)', re.IGNORECASE)
-    texto = padrao_extenso_titulo.sub(substituir_extenso_com_titulo, texto)
     return texto
 
 def _remover_numeros_pagina_isolados(texto):
@@ -177,103 +190,46 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     Orquestra todas as etapas de limpeza e formatação do texto.
     """
     print("Aplicando formatacoes avancadas ao texto...")
-    texto = texto_bruto
-
-    texto = unicodedata.normalize('NFKC', texto)
-    texto = texto.replace('\f', '\n\n').replace('*', '')
-    for char in ['_', '#', '@']: texto = texto.replace(char, ' ')
-    for char in ['(', ')', '\\', '[', ']']: texto = texto.replace(char, '')
-    texto = re.sub(r'\{.*?\}', '', texto)
+    
+    # ETAPA 1: Normalizações básicas e remoção de caracteres indesejados
+    texto = unicodedata.normalize('NFKC', texto_bruto)
+    texto = texto.replace('\f', '\n\n')
+    texto = re.sub(r'[*_#@(){}\[\]\\]', ' ', texto) # Remove mais caracteres de uma vez
     texto = re.sub(r'[ \t]+', ' ', texto)
     texto = "\n".join([linha.strip() for linha in texto.splitlines() if linha.strip()])
+    
+    # ETAPA 2 (NOVA): Remove todo o conteúdo antes do primeiro capítulo
+    texto = _remover_cabecalho_inicial(texto)
 
-    paragrafos_originais = texto.split('\n\n')
-    paragrafos_processados = []
-    for paragrafo_bruto in paragrafos_originais:
-        paragrafo_bruto = paragrafo_bruto.strip()
-        if not paragrafo_bruto: continue
-        linhas_do_paragrafo = paragrafo_bruto.split('\n')
-        buffer_linha_atual = ""
-        for i, linha in enumerate(linhas_do_paragrafo):
-            linha_strip = linha.strip()
-            if not linha_strip: continue
-            juntar_com_anterior = False
-            if buffer_linha_atual:
-                ultima_palavra_buffer = buffer_linha_atual.split()[-1].lower() if buffer_linha_atual else ""
-                termina_abreviacao = ultima_palavra_buffer in config.ABREVIACOES_QUE_NAO_TERMINAM_FRASE
-                termina_sigla_ponto = re.search(r'\b[A-Z]\.$', buffer_linha_atual) is not None
-                termina_pontuacao_forte = re.search(r'[.!?…]$', buffer_linha_atual)
-                nao_juntar = False
-                if termina_pontuacao_forte and not termina_abreviacao and not termina_sigla_ponto:
-                     if linha_strip and linha_strip[0].isupper(): nao_juntar = True
-                if termina_abreviacao or termina_sigla_ponto: juntar_com_anterior = True
-                elif not nao_juntar and not termina_pontuacao_forte: juntar_com_anterior = True
-                elif buffer_linha_atual.lower() in ['doutora', 'senhora', 'senhor', 'doutor']: juntar_com_anterior = True
-            if juntar_com_anterior: buffer_linha_atual += " " + linha_strip
-            else:
-                if buffer_linha_atual: paragrafos_processados.append(buffer_linha_atual)
-                buffer_linha_atual = linha_strip
-        if buffer_linha_atual: paragrafos_processados.append(buffer_linha_atual)
-    texto = '\n\n'.join(paragrafos_processados)
+    # ETAPA 3 (ATUALIZADA): Formata os cabeçalhos dos capítulos
+    texto = _formatar_numeracao_capitulos(texto)
 
-    texto = re.sub(r'[ \t]+', ' ', texto)
-    texto = re.sub(r'(?<!\n)\n(?!\\n)', ' ', texto)
-    texto = re.sub(r'\n{3,}', '\n\n', texto)
-
+    # ETAPA 4: Lógicas de limpeza de parágrafos e junção de linhas
     texto = _remover_metadados_pdf(texto)
     texto = _remover_numeros_pagina_isolados(texto)
     texto = _corrigir_hifenizacao_quebras(texto)
-    texto = _formatar_numeracao_capitulos(texto)
+    
+    # Reagrupamento de parágrafos
+    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto)
+    texto = re.sub(r'\n{3,}', '\n\n', texto)
 
+    # ETAPA 5: Separação de frases em parágrafos distintos para melhor ritmo
     segmentos = re.split(r'([.!?…])\s*', texto)
     texto_reconstruido = ""
-    buffer_segmento = ""
-    for i in range(0, len(segmentos), 2):
-        parte_texto = segmentos[i]
-        pontuacao = segmentos[i+1] if i + 1 < len(segmentos) else ""
-        segmento_completo = (parte_texto + pontuacao).strip()
-        if not segmento_completo: continue
-        ultima_palavra = segmento_completo.split()[-1].lower() if segmento_completo else ""
-        ultima_palavra_sem_ponto = ultima_palavra.rstrip('.!?…') if pontuacao else ultima_palavra
-        termina_abreviacao_conhecida = ultima_palavra in config.ABREVIACOES_QUE_NAO_TERMINAM_FRASE or \
-                                        ultima_palavra_sem_ponto in config.ABREVIACOES_QUE_NAO_TERMINAM_FRASE
-        termina_sigla_padrao = SIGLA_COM_PONTOS_RE.search(segmento_completo) is not None
-        nao_quebrar = False
-        if pontuacao == '.':
-             if termina_abreviacao_conhecida or termina_sigla_padrao: nao_quebrar = True
-        if buffer_segmento: buffer_segmento += " " + segmento_completo
-        else: buffer_segmento = segmento_completo
-        if not nao_quebrar: texto_reconstruido += buffer_segmento + "\n\n" ; buffer_segmento = ""
-    if buffer_segmento:
-         texto_reconstruido += buffer_segmento
-         if not re.search(r'[.!?…)]$', buffer_segmento): texto_reconstruido += "."
-         texto_reconstruido += "\n\n"
+    for i in range(0, len(segmentos) - 1, 2):
+        frase = (segmentos[i] + segmentos[i+1]).strip()
+        if frase:
+            texto_reconstruido += frase + "\n\n"
+    if len(segmentos) % 2 != 0 and segmentos[-1].strip():
+        texto_reconstruido += segmentos[-1].strip() + ".\n\n"
     texto = texto_reconstruido.strip()
 
+    # ETAPA 6: Expansão de números e abreviações
     texto = _normalizar_caixa_alta_linhas(texto)
     texto = _converter_ordinais_para_extenso(texto)
     texto = _expandir_abreviacoes_numeros(texto)
 
-    formas_expandidas_tratamento = ['Senhor', 'Senhora', 'Doutor', 'Doutora', 'Professor', 'Professora', 'Excelentíssimo', 'Excelentíssima']
-    for forma in formas_expandidas_tratamento:
-        padrao_limpeza = r'\b' + re.escape(forma) + r'\.\s+([A-Z])'
-        texto = re.sub(padrao_limpeza, rf'{forma} \1', texto)
-        padrao_limpeza_sem_espaco = r'\b' + re.escape(forma) + r'\.([A-Z])'
-        texto = re.sub(padrao_limpeza_sem_espaco, rf'{forma} \1', texto)
-
-    texto = re.sub(r'\b([A-Z])\.\s+([A-Z])', r'\1. \2', texto)
-    texto = re.sub(r'\b([A-Z])\.\s+([A-Z][a-z])', r'\1. \2', texto)
-
-    paragrafos_finais = texto.split('\n\n')
-    paragrafos_formatados_final = []
-    for p in paragrafos_finais:
-        p_strip = p.strip()
-        if not p_strip: continue
-        if not re.search(r'[.!?…)]$', p_strip) and \
-           not re.match(r'^\s*CAP[ÍI]TULO\s+[\w\d]+\.?\s*$', p_strip.split('\n')[0].strip(), re.IGNORECASE):
-            p_strip += '.'
-        paragrafos_formatados_final.append(p_strip)
-    texto = '\n\n'.join(paragrafos_formatados_final)
+    # ETAPA 7: Limpezas finais e padronização
     texto = re.sub(r'[ \t]+', ' ', texto).strip()
     texto = re.sub(r'\n{2,}', '\n\n', texto)
 
