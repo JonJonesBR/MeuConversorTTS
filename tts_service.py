@@ -5,7 +5,6 @@ Encapsula a lógica de divisão de texto e a comunicação com a
 biblioteca edge_tts.
 """
 import asyncio
-import re
 from pathlib import Path
 
 import edge_tts
@@ -16,48 +15,60 @@ import shared_state
 
 def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     """
-    Divide o texto em partes menores para TTS, respeitando parágrafos e frases
-    para manter um fluxo mais natural e evitar erros na API.
+    Divide o texto completo em blocos (chunks) otimizados para a API TTS.
+
+    Esta função foi reescrita para agrupar parágrafos de forma inteligente,
+    garantindo que cada bloco tenha um tamanho próximo ao limite máximo
+    permitido, mas sem quebrar frases ou palavras no meio. Isso resulta
+    em menos requisições e um áudio com fluxo mais natural.
     """
     print(f"Dividindo texto em chunks de ate {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
     
-    partes_iniciais = texto_processado.split('\n\n')
-    partes_finais = []
+    # O texto já vem formatado com parágrafos separados por '\n\n'
+    paragrafos = texto_processado.split('\n\n')
+    
+    if not paragrafos:
+        return []
 
-    for p_inicial in partes_iniciais:
-        p_strip = p_inicial.strip()
-        if not p_strip:
+    chunks_finais = []
+    chunk_atual = ""
+
+    for paragrafo in paragrafos:
+        paragrafo = paragrafo.strip()
+        if not paragrafo:
             continue
 
-        if len(p_strip) <= config.LIMITE_CARACTERES_CHUNK_TTS:
-            partes_finais.append(p_strip)
+        # Se o próprio parágrafo já excede o limite, ele se torna um chunk sozinho
+        # (Isso é raro, mas é uma proteção)
+        if len(paragrafo) > config.LIMITE_CARACTERES_CHUNK_TTS:
+            # Se havia algo no chunk atual, salva antes
+            if chunk_atual:
+                chunks_finais.append(chunk_atual)
+            chunks_finais.append(paragrafo)
+            chunk_atual = ""
             continue
 
-        # Se o parágrafo é muito longo, quebra em frases
-        frases = re.split(r'(?<=[.!?…])\s+', p_strip)
-        segmento_atual = ""
-        for frase in frases:
-            if len(segmento_atual) + len(frase) + 1 > config.LIMITE_CARACTERES_CHUNK_TTS:
-                if segmento_atual:
-                    partes_finais.append(segmento_atual)
-                segmento_atual = frase
-            else:
-                segmento_atual += (" " if segmento_atual else "") + frase
-        
-        if segmento_atual:
-            partes_finais.append(segmento_atual)
-
-    # Garante que nenhum chunk final seja maior que o limite (caso de frases muito longas)
-    partes_super_finais = []
-    for parte in partes_finais:
-        if len(parte) > config.LIMITE_CARACTERES_CHUNK_TTS:
-            for i in range(0, len(parte), config.LIMITE_CARACTERES_CHUNK_TTS):
-                partes_super_finais.append(parte[i:i+config.LIMITE_CARACTERES_CHUNK_TTS])
+        # Verifica se adicionar o próximo parágrafo excederia o limite
+        if len(chunk_atual) + len(paragrafo) + 2 > config.LIMITE_CARACTERES_CHUNK_TTS:
+            # Se exceder e o chunk atual não estiver vazio, finaliza o chunk
+            if chunk_atual:
+                chunks_finais.append(chunk_atual)
+            
+            # O parágrafo atual se torna o início de um novo chunk
+            chunk_atual = paragrafo
         else:
-            partes_super_finais.append(parte)
-
-    print(f"Texto dividido em {len(partes_super_finais)} parte(s).")
-    return [p for p in partes_super_finais if p.strip()]
+            # Se não exceder, adiciona o parágrafo ao chunk atual
+            if chunk_atual:
+                chunk_atual += "\n\n" + paragrafo
+            else:
+                chunk_atual = paragrafo
+    
+    # Adiciona o último chunk que sobrou no buffer
+    if chunk_atual:
+        chunks_finais.append(chunk_atual)
+    
+    print(f"Texto dividido em {len(chunks_finais)} parte(s).")
+    return [p for p in chunks_finais if p.strip()]
 
 
 async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, velocidade: str = "x1.0") -> tuple[bool, str]:
@@ -100,13 +111,14 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
     """
     path_saida_obj = Path(caminho_saida)
     path_saida_obj.unlink(missing_ok=True)
+    velocidade = settings_manager.obter_configuracao('velocidade_padrao')
     
     for tentativa in range(config.MAX_TTS_TENTATIVAS):
         if shared_state.CANCELAR_PROCESSAMENTO:
             return False
             
         try:
-            communicate = edge_tts.Communicate(text=texto, voice=voz)
+            communicate = edge_tts.Communicate(text=texto, voice=voz, rate=velocidade)
             await communicate.save(caminho_saida)
 
             if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
@@ -114,11 +126,15 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
             else:
                 path_saida_obj.unlink(missing_ok=True)
         except Exception as e:
-            print(f"⚠️ Tentativa {tentativa+1} falhou para chunk {indice}/{total}: {e}")
+            # Não exibe erro na primeira tentativa para não poluir o log
+            if tentativa > 0:
+                print(f"⚠️ Tentativa {tentativa+1} falhou para chunk {indice}/{total}: {type(e).__name__}")
+            
             path_saida_obj.unlink(missing_ok=True)
             if tentativa == config.MAX_TTS_TENTATIVAS - 1:
                 print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
                 return False
-            await asyncio.sleep(2)  # Espera entre tentativas
+            await asyncio.sleep(2 * (tentativa + 1))  # Aumenta a espera a cada tentativa
     
     return False
+
