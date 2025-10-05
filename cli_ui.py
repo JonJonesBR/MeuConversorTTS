@@ -83,10 +83,26 @@ async def obter_confirmacao(prompt: str, default_yes=True) -> bool:
 async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
     """Exibe o banner do programa e um menu de opções."""
     limpar_tela()
+
+    largura_interna = 42  # Largura interna da caixa, sem as bordas
+
+    def centralizar_texto(texto: str, largura: int) -> str:
+        """Centraliza o texto dentro de uma largura específica."""
+        if len(texto) >= largura:
+            return texto
+        espacos_total = largura - len(texto)
+        espacos_esquerda = espacos_total // 2
+        # espacos_direita = espacos_total - espacos_esquerda
+        return texto.center(largura)
+
+    linha1 = "CONVERSOR TTS COMPLETO"
+    linha2 = "Text-to-Speech + Melhoria de Áudio em PT-BR"
+
     print("╔════════════════════════════════════════════╗")
-    print("║         CONVERSOR TTS COMPLETO                                          ║")
-    print("║        Text-to-Speech em PT-BR                                          ║")
+    print(f"║ {centralizar_texto(linha1, largura_interna)} ║")
+    print(f"║ {centralizar_texto(linha2, largura_interna)} ║")
     print("╚════════════════════════════════════════════╝")
+
     print(f"\n--- {titulo_menu.upper()} ---")
     num_opcoes = max([int(k) for k in opcoes_menu.keys() if k.isdigit()], default=0)
     for num, desc in opcoes_menu.items():
@@ -438,12 +454,10 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
         if escolha == 1:
             nome_saida = f"{path_entrada.stem}_melhorado_ruido{path_entrada.suffix}"
             caminho_arquivo_saida = path_entrada.parent / nome_saida
-            print("\n🔄 A aplicar Redução de Ruído... (Isto pode demorar)")
             sucesso = ffmpeg_utils.reduzir_ruido_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
         elif escolha == 2:
             nome_saida = f"{path_entrada.stem}_melhorado_normalizado{path_entrada.suffix}"
             caminho_arquivo_saida = path_entrada.parent / nome_saida
-            print("\n🔄 A aplicar Normalização de Volume...")
             sucesso = ffmpeg_utils.normalizar_audio_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
         elif escolha == 3:
             print("\nSelecione a resolução do vídeo de saída:")
@@ -457,13 +471,15 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
             resolucao_str = RESOLUCOES_VIDEO[res_escolhida][0]
             nome_saida = f"{path_entrada.stem}_video_preto.mp4"
             caminho_arquivo_saida = path_entrada.parent / nome_saida
-            print("\n🎬 Gerando vídeo MP4 com tela preta...")
+            
+            # Chamada à função com barra de progresso
             sucesso = ffmpeg_utils.criar_video_a_partir_de_audio(str(path_entrada), str(caminho_arquivo_saida), resolucao_str)
 
-        if sucesso and caminho_arquivo_saida:
-            print(f"\n✅ Operação concluída! Ficheiro salvo como: {caminho_arquivo_saida.name}")
+        if sucesso:
+             if caminho_arquivo_saida:
+                print(f"\n✅ Operação concluída! Ficheiro salvo como: {caminho_arquivo_saida.name}")
         else:
-            print("\n❌ Falha ao aplicar a melhoria. Verifique se o FFmpeg está instalado e se o ficheiro é válido.")
+            print("\n❌ Falha ao aplicar a melhoria. Verifique as mensagens de erro acima.")
 
         if not await obter_confirmacao("\nDeseja aplicar outra melhoria a este mesmo ficheiro original?", default_yes=False):
             break
@@ -494,38 +510,31 @@ async def exibir_ajuda():
 
 Este script foi desenhado para facilitar a conversão de texto para áudio (TTS) e realizar melhorias em ficheiros de áudio e vídeo.
 
-➡️ Onde colocar os seus ficheiros?
-   - No telemóvel (Termux): Coloque seus ficheiros .txt, .pdf, ou .epub na pasta 'storage/shared/Download' ou qualquer outra pasta partilhada para que o script os possa encontrar.
-   - No PC: Pode navegar para qualquer pasta no seu sistema.
-
 ➡️ O que cada opção faz?
 
 1.  🚀 CONVERTER UM ÚNICO FICHEIRO:
     - Selecione um ficheiro .txt, .pdf ou .epub.
     - O script irá extrair o texto, limpá-lo e convertê-lo para um áudio MP3.
-    - O ficheiro de áudio final será guardado na mesma pasta do ficheiro original, dentro de um novo subdiretório com o nome do áudio.
 
 2.  📚 CONVERTER PASTA INTEIRA (LOTE):
     - Selecione uma pasta.
-    - O script irá procurar TODOS os ficheiros compatíveis (.txt, .pdf, .epub) dentro dela (e subpastas, se assim o desejar).
-    - Cada ficheiro será convertido para áudio, usando a voz e velocidade padrão definidas nas configurações.
+    - O script irá procurar TODOS os ficheiros compatíveis dentro dela.
 
 3.  🎙️ TESTAR VOZES TTS:
-    - Permite-lhe ouvir exemplos de todas as vozes disponíveis em Português do Brasil.
-    - Digite um texto qualquer e o script irá gerar e reproduzir o áudio na hora.
+    - Permite-lhe ouvir exemplos de todas as vozes disponíveis.
 
 4.  ⚡ MELHORAR ÁUDIO/VÍDEO:
     - Selecione um ficheiro de áudio ou vídeo já existente.
     - Pode aplicar melhorias como:
-        - Redução de Ruído: Ideal para limpar gravações de voz com ruído de fundo.
-        - Normalização de Volume: Ajusta o volume do áudio para um nível padrão, útil para juntar vários áudios.
-        - Gerar MP4 com Tela Preta: Converte um áudio em vídeo MP4 com tela preta, ideal para uploads em plataformas de vídeo.
+        - Redução de Ruído: Ideal para limpar gravações de voz.
+        - Normalização de Volume: Ajusta o volume para um nível padrão.
+        - Gerar MP4 com Tela Preta: Converte um áudio em vídeo, com barra de progresso.
 
 5.  ⚙️ CONFIGURAÇÕES:
-    - Altere a voz padrão e a velocidade da fala que serão usadas nas conversões.
+    - Altere a voz e velocidade padrão para as conversões.
 
 6.  🔄 ATUALIZAR SCRIPT:
-    - Verifica se existe uma nova versão do script no GitHub e instala-a automaticamente.
+    - Verifica se existe uma nova versão e instala-a.
 
 7.  ❓ AJUDA:
     - Exibe esta tela.
@@ -535,9 +544,8 @@ Este script foi desenhado para facilitar a conversão de texto para áudio (TTS)
 
 
 --- DICAS ---
-
 - CANCELAR: Pressione CTRL+C a qualquer momento para cancelar a operação atual.
-- DEPENDÊNCIAS: Se algo não funcionar, certifique-se que executou o script de instalação correto (instalar-*.sh ou .bat) para instalar todas as dependências como o FFmpeg.
+- DEPENDÊNCIAS: Certifique-se de que o FFmpeg está instalado.
 
 """)
     await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
