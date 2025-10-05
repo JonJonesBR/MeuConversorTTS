@@ -12,6 +12,7 @@ import edge_tts
 # Importa de nossos outros módulos
 import config
 import shared_state
+import settings_manager  # <-- LINHA CORRIGIDA: Import que estava faltando
 
 def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     """
@@ -24,7 +25,6 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     """
     print(f"Dividindo texto em chunks de ate {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
     
-    # O texto já vem formatado com parágrafos separados por '\n\n'
     paragrafos = texto_processado.split('\n\n')
     
     if not paragrafos:
@@ -38,32 +38,23 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
         if not paragrafo:
             continue
 
-        # Se o próprio parágrafo já excede o limite, ele se torna um chunk sozinho
-        # (Isso é raro, mas é uma proteção)
         if len(paragrafo) > config.LIMITE_CARACTERES_CHUNK_TTS:
-            # Se havia algo no chunk atual, salva antes
             if chunk_atual:
                 chunks_finais.append(chunk_atual)
             chunks_finais.append(paragrafo)
             chunk_atual = ""
             continue
 
-        # Verifica se adicionar o próximo parágrafo excederia o limite
         if len(chunk_atual) + len(paragrafo) + 2 > config.LIMITE_CARACTERES_CHUNK_TTS:
-            # Se exceder e o chunk atual não estiver vazio, finaliza o chunk
             if chunk_atual:
                 chunks_finais.append(chunk_atual)
-            
-            # O parágrafo atual se torna o início de um novo chunk
             chunk_atual = paragrafo
         else:
-            # Se não exceder, adiciona o parágrafo ao chunk atual
             if chunk_atual:
                 chunk_atual += "\n\n" + paragrafo
             else:
                 chunk_atual = paragrafo
     
-    # Adiciona o último chunk que sobrou no buffer
     if chunk_atual:
         chunks_finais.append(chunk_atual)
     
@@ -79,12 +70,11 @@ async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, v
     path_saida_obj = Path(caminho_saida)
     path_saida_obj.unlink(missing_ok=True)
 
-    # Converte o formato de velocidade (ex: 'x1.2') para o formato do edge-tts (ex: '+20%')
     try:
         multiplicador = float(velocidade.replace('x', ''))
         rate_str = f"{int((multiplicador - 1.0) * 100):+d}%"
     except ValueError:
-        rate_str = "+0%" # Valor padrão se a string de velocidade for inválida
+        rate_str = "+0%"
 
     try:
         communicate = edge_tts.Communicate(text=texto, voice=voz, rate=rate_str)
@@ -111,14 +101,21 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
     """
     path_saida_obj = Path(caminho_saida)
     path_saida_obj.unlink(missing_ok=True)
-    velocidade = settings_manager.obter_configuracao('velocidade_padrao')
     
+    # Obtém a configuração de velocidade usando o settings_manager importado
+    velocidade_str = settings_manager.obter_configuracao('velocidade_padrao')
+    try:
+        multiplicador = float(velocidade_str.replace('x', ''))
+        rate_param = f"{int((multiplicador - 1.0) * 100):+d}%"
+    except ValueError:
+        rate_param = "+0%"
+
     for tentativa in range(config.MAX_TTS_TENTATIVAS):
         if shared_state.CANCELAR_PROCESSAMENTO:
             return False
             
         try:
-            communicate = edge_tts.Communicate(text=texto, voice=voz, rate=velocidade)
+            communicate = edge_tts.Communicate(text=texto, voice=voz, rate=rate_param)
             await communicate.save(caminho_saida)
 
             if path_saida_obj.exists() and path_saida_obj.stat().st_size > 200:
@@ -126,7 +123,6 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
             else:
                 path_saida_obj.unlink(missing_ok=True)
         except Exception as e:
-            # Não exibe erro na primeira tentativa para não poluir o log
             if tentativa > 0:
                 print(f"⚠️ Tentativa {tentativa+1} falhou para chunk {indice}/{total}: {type(e).__name__}")
             
@@ -134,7 +130,7 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
             if tentativa == config.MAX_TTS_TENTATIVAS - 1:
                 print(f"❌ Falha definitiva no chunk {indice}/{total} após {config.MAX_TTS_TENTATIVAS} tentativas.")
                 return False
-            await asyncio.sleep(2 * (tentativa + 1))  # Aumenta a espera a cada tentativa
+            await asyncio.sleep(2 * (tentativa + 1))
     
     return False
 
