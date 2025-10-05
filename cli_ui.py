@@ -84,8 +84,8 @@ async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
     """Exibe o banner do programa e um menu de opções."""
     limpar_tela()
     print("╔════════════════════════════════════════════╗")
-    print("║         CONVERSOR TTS COMPLETO             ║")
-    print("║        Text-to-Speech em PT-BR║")
+    print("║         CONVERSOR TTS COMPLETO                                          ║")
+    print("║        Text-to-Speech em PT-BR                                          ║")
     print("╚════════════════════════════════════════════╝")
     print(f"\n--- {titulo_menu.upper()} ---")
     num_opcoes = max([int(k) for k in opcoes_menu.keys() if k.isdigit()], default=0)
