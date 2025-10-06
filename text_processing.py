@@ -119,23 +119,35 @@ def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
 def _substituir_simbolos_por_extenso(texto: str) -> str:
     """Substitui símbolos que podem ser mal interpretados pelo TTS."""
     print("   -> Substituindo símbolos por extenso...")
+    
+    # Mapeamento de símbolos para sua forma por extenso.
+    # As chaves são strings literais, não regex.
     substituicoes = {
         '&': ' e ',
         '@': ' arroba ',
-        '#': ' ',  # Remove hashtags, que são ruído no texto de um livro
-        r'\$': ' dólares ', # Trata o $ avulso (R$ é tratado em _expandir_numeros)
-        '/': ' ou ', # "ou" soa mais natural que "barra"
-        '\\': ' ', # Barras invertidas são geralmente artefatos
-        '_': ' ', # Underscores avulsos
-        r'\+': ' mais ',
+        '#': ' ',
+        '$': ' dólares ', # R$ é tratado em _expandir_numeros
+        '/': ' ou ',
+        '\\': ' ', # Barra invertida literal
+        '_': ' ',
+        '+': ' mais ',
         '=': ' igual a ',
         '<': ' menor que ',
         '>': ' maior que ',
-        '%': ' por cento', # Tratado também em números, mas aqui garante a leitura
+        # '%' é melhor tratado na expansão de números, mas pode ficar aqui como fallback
     }
-    for simbolo, substituicao in substituicoes.items():
-        texto = re.sub(simbolo, substituicao, texto)
-    return texto
+
+    # Cria uma única expressão regular compilada.
+    # re.escape() garante que caracteres especiais (como $, +, \) sejam tratados literalmente.
+    # As chaves são ordenadas pela mais longa primeiro para evitar substituições parciais (ex: tratar '--' antes de '-').
+    padrao_compilado = re.compile("|".join(
+        re.escape(k) for k in sorted(substituicoes.keys(), key=len, reverse=True)
+    ))
+
+    # A função de substituição (lambda) busca o valor correspondente no dicionário
+    # para cada símbolo encontrado pelo padrão compilado.
+    return padrao_compilado.sub(lambda m: substituicoes[m.group(0)], texto)
+
 
 def _remontar_paragrafos(texto: str) -> str:
     """Corrige quebras de linha indevidas no meio dos parágrafos."""
