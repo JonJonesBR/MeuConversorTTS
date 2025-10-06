@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Módulo responsável por toda a limpeza, formatação e preparação
-do texto para a conversão em áudio (TTS). Esta é uma versão
-aprimorada com lógica de limpeza e reconstrução de texto mais robusta.
+do texto para a conversão em áudio (TTS). Versão aprimorada
+para remover formatação Markdown (_ e **) e ajustar títulos.
 """
 import re
 import unicodedata
 from num2words import num2words
 
-# Importa as configurações do nosso arquivo config.py
-# Supõe-se que config.py contém CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM
 import config
 
 # ================== CONSTANTES DE LIMPEZA ==================
 
-# Textos de rodapé/cabeçalho repetidos que devem ser removidos
 TEXTOS_REPETIDOS_PARA_REMOVER = [
     "Esse livro é protegido pelas leis internacionais de Copyright.",
     "A Detonando Home Page não se responsabiliza por qualquer dano que esse material possa causar.",
@@ -25,46 +22,44 @@ TEXTOS_REPETIDOS_PARA_REMOVER = [
     "net - Sempre uma novidade para você!"
 ]
 
-# ================== FUNÇÕES AUXILIARES DE LIMPEZA E FORMATAÇÃO ==================
+# ================== FUNÇÕES AUXILIARES ==================
 
 def _remover_lixo_textual(texto: str) -> str:
-    """Remove cabeçalho inicial e textos de rodapé repetidos."""
     print("   -> Removendo cabeçalhos e rodapés...")
     padrao_primeiro_cap = re.compile(r'(cap[íi]tulo)', re.IGNORECASE)
     match = padrao_primeiro_cap.search(texto)
     if match:
         texto = texto[match.start():]
-    
     for frase in TEXTOS_REPETIDOS_PARA_REMOVER:
         texto = texto.replace(frase, "")
-        
+    return texto
+
+def _remover_formatacao_markdown(texto: str) -> str:
+    """Remove formatações como _**texto**_ ou **texto**, _texto_ etc."""
+    print("   -> Removendo formatação Markdown (_ e **)...")
+    texto = re.sub(r'\*\*(.*?)\*\*', r'\1', texto)  # remove negrito
+    texto = re.sub(r'_(.*?)_', r'\1', texto)        # remove itálico
+    texto = re.sub(r'\*([^*]+)\*', r'\1', texto)    # remove asteriscos soltos
     return texto
 
 def _remontar_paragrafos(texto: str) -> str:
-    """Junta linhas quebradas incorretamente para restaurar os parágrafos."""
     print("   -> Remontando parágrafos quebrados...")
-    
-    placeholder_paragrafo = "|||NEW_PARAGRAPH|||"
-    texto_com_placeholders = re.sub(r'\n\s*\n', placeholder_paragrafo, texto)
-    texto_sem_quebras = texto_com_placeholders.replace('\n', ' ')
-    texto_corrigido = texto_sem_quebras.replace(placeholder_paragrafo, '\n\n')
-    texto_corrigido = re.sub(r'(\w+)-\s+', r'\1', texto_corrigido)
-    
-    return texto_corrigido
-    
+    placeholder = "|||NEW_PARAGRAPH|||"
+    texto = re.sub(r'\n\s*\n', placeholder, texto)
+    texto = texto.replace('\n', ' ')
+    texto = texto.replace(placeholder, '\n\n')
+    texto = re.sub(r'(\w+)-\s+', r'\1', texto)
+    return texto
+
 def _formatar_capitulos_e_titulos(texto: str) -> str:
-    """Localiza e formata os títulos dos capítulos de forma mais robusta."""
     print("   -> Formatando títulos de capítulos...")
 
     def substituir_capitulo(match):
         numero = match.group(1).strip().upper()
         titulo = match.group(2).strip().title()
-        
         numero_final = config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero, numero)
-        
         if not re.search(r'[.!?]$', titulo):
             titulo += "."
-            
         return f"\n\nCAPÍTULO {numero_final}.\n\n{titulo}\n\n"
 
     padrao = re.compile(
@@ -74,32 +69,30 @@ def _formatar_capitulos_e_titulos(texto: str) -> str:
     return padrao.sub(substituir_capitulo, texto)
 
 def _expandir_numeros_e_abreviacoes(texto: str) -> str:
-    """Converte números para texto por extenso (cardinais, ordinais, monetários)."""
     print("   -> Expandindo números e abreviações...")
 
     def substituir_ordinal(match):
         try:
             numero = int(match.group(1))
             terminacao = match.group(2).lower()
-            
             if terminacao in ('o', 'º'):
                 return num2words(numero, lang='pt_BR', to='ordinal')
             elif terminacao in ('a', 'ª'):
-                ordinal_masc = num2words(numero, lang='pt_BR', to='ordinal')
-                if ordinal_masc.endswith('o'):
-                    return ordinal_masc[:-1] + 'a'
-                return ordinal_masc
+                ordinal = num2words(numero, lang='pt_BR', to='ordinal')
+                if ordinal.endswith('o'):
+                    return ordinal[:-1] + 'a'
+                return ordinal
             return match.group(0)
-        except (ValueError, NotImplementedError):
-             return match.group(0)
-             
+        except Exception:
+            return match.group(0)
+
     texto = re.sub(r'\b(\d+)([oOaAºª])\b', substituir_ordinal, texto)
 
     def substituir_monetario(match):
         valor = match.group(1).replace('.', '')
         return f"{num2words(int(valor), lang='pt_BR')} reais"
     texto = re.sub(r'R\$\s*(\d[\d.]*)', substituir_monetario, texto)
-    
+
     def substituir_cardinal(match):
         num_str = match.group(0)
         try:
@@ -110,60 +103,42 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
         except ValueError:
             return num_str
     texto = re.sub(r'\b\d+\b', substituir_cardinal, texto)
-
     return texto
 
 def _limpeza_final(texto: str) -> str:
-    """Aplica as limpezas finais de pontuação, espaçamento e diálogos."""
     print("   -> Realizando limpezas finais...")
-
     texto = re.sub(r'^\s*\d+\s*$', '', texto, flags=re.MULTILINE)
-    
-    # **INÍCIO DA CORREÇÃO**
-    # Trata os diferentes tipos de travessão como caracteres individuais, não como um intervalo.
     texto = re.sub(r'([.!?])\s*([—―–-])', r'\1\n\n\2', texto)
-    # **FIM DA CORREÇÃO**
-    
     texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
     texto = re.sub(r'([,.!?;:])(\w)', r'\1 \2', texto)
     texto = re.sub(r' {2,}', ' ', texto)
     texto = re.sub(r'\n{3,}', '\n\n', texto)
 
-    paragrafos_finais = []
+    paragrafos = []
     for p in texto.split('\n\n'):
-        p_strip = p.strip()
-        if p_strip:
-            if not re.search(r'[.!?]$', p_strip) and not p_strip.startswith("CAPÍTULO"):
-                p_strip += '.'
-            paragrafos_finais.append(p_strip)
-            
-    return '\n\n'.join(paragrafos_finais)
+        p = p.strip()
+        if p:
+            if not re.search(r'[.!?]$', p) and not p.startswith("CAPÍTULO"):
+                p += '.'
+            paragrafos.append(p)
+    return '\n\n'.join(paragrafos)
 
-# ================== FUNÇÃO PRINCIPAL DE FORMATAÇÃO ==================
+# ================== FUNÇÃO PRINCIPAL ==================
 
 def formatar_texto_para_tts(texto_bruto: str) -> str:
     """
-    Orquestra todas as etapas de limpeza e formatação para criar um
-    texto perfeito para a conversão em áudio (TTS).
+    Executa todas as etapas de limpeza e formatação para gerar
+    texto perfeito para conversão TTS (sem símbolos como _ ou **).
     """
-    print("Aplicando formatacoes avancadas ao texto...")
-    
-    # Etapa 1: Normalização básica e remoção de lixo grosso
+    print("Aplicando formatações avançadas ao texto...")
+
     texto = unicodedata.normalize('NFKC', texto_bruto)
     texto = _remover_lixo_textual(texto)
-    
-    # Etapa 2: Reconstrução dos parágrafos
+    texto = _remover_formatacao_markdown(texto)
     texto = _remontar_paragrafos(texto)
-
-    # Etapa 3: Formatação de elementos estruturais
     texto = _formatar_capitulos_e_titulos(texto)
-
-    # Etapa 4: Expansão de números para leitura natural
     texto = _expandir_numeros_e_abreviacoes(texto)
-    
-    # Etapa 5: Limpeza final de pontuação e espaçamento
     texto = _limpeza_final(texto)
-    
+
     print("✅ Formatação de texto concluída.")
     return texto.strip()
-
