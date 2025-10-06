@@ -20,19 +20,15 @@ def check_for_updates_git():
     Usa comandos Git para verificar se há atualizações no repositório remoto.
     Retorna um status: 'atualizado', 'atualizacao_disponivel', 'erro' ou 'divergente'.
     """
+    if not is_git_repository():
+        return "erro", "❌ Esta não parece ser uma instalação via 'git clone'. A atualização automática não é possível."
+
     try:
         print("🔎 A verificar o estado do repositório local...")
-        subprocess.run(
-            ["git", "status"],
-            capture_output=True, check=True, text=True, cwd=Path.cwd()
-        )
+        # Limpa o estado local para evitar falsos positivos
+        subprocess.run(["git", "remote", "update"], capture_output=True, check=True, text=True, cwd=Path.cwd())
 
         print("📡 A contactar o GitHub para procurar atualizações...")
-        subprocess.run(
-            ["git", "fetch"],
-            capture_output=True, check=True, text=True, cwd=Path.cwd()
-        )
-
         status_result = subprocess.run(
             ["git", "status", "-uno"],
             capture_output=True, check=True, text=True, cwd=Path.cwd()
@@ -45,30 +41,43 @@ def check_for_updates_git():
         elif "your branch is behind" in output:
             return "atualizacao_disponivel", "🆕 Uma nova versão está disponível!"
         elif "have diverged" in output:
-            return "divergente", "⚠️ A sua versão local e a remota divergem. Recomenda-se uma reinstalação."
+            return "divergente", "⚠️ A sua versão local e a remota divergem. A atualização forçará a versão do GitHub."
         else:
+            # Se houver modificações locais, mas o branch não estiver "behind", ainda oferece a atualização para resetar.
+            if "changes not staged for commit" in output or "untracked files" in output:
+                 return "divergente", "⚠️ Foram detetadas alterações locais. A atualização irá substituí-las pela versão oficial."
             return "erro", "🤔 Não foi possível determinar o estado da atualização."
 
     except FileNotFoundError:
         return "erro", "❌ O comando 'git' não foi encontrado. Certifique-se de que o Git está instalado."
     except subprocess.CalledProcessError as e:
         error_message = e.stderr or e.stdout
-        if "not a git repository" in error_message.lower():
-             return "erro", "❌ Esta não parece ser uma instalação via 'git clone'."
         return "erro", f"❌ Ocorreu um erro ao comunicar com o Git:\n{error_message}"
 
 async def verificar_e_atualizar():
     """
-    Verifica por atualizações e aplica se disponível.
+    Verifica por atualizações e aplica se disponível, forçando a atualização
+    para evitar conflitos locais.
     """
     status, message = check_for_updates_git()
     print(message)
-    if status == "atualizacao_disponivel":
-        print("🔄 A aplicar atualização...")
+
+    # Permite a atualização tanto se estiver desatualizado ("behind") quanto se tiver divergido
+    if status in ["atualizacao_disponivel", "divergente"]:
+        print("\n🔄 A aplicar atualização... Isto irá substituir quaisquer alterações locais.")
         try:
-            subprocess.run(["git", "pull"], capture_output=True, check=True, text=True, cwd=Path.cwd())
-            print("✅ Atualização aplicada com sucesso!")
+            # 1. Busca as últimas alterações do repositório remoto
+            subprocess.run(["git", "fetch", "origin"], capture_output=True, check=True, text=True, cwd=Path.cwd())
+            
+            # 2. Força o reset do branch local para corresponder ao branch 'main' do repositório remoto
+            subprocess.run(["git", "reset", "--hard", "origin/main"], capture_output=True, check=True, text=True, cwd=Path.cwd())
+            
+            print("\n✅ Atualização aplicada com sucesso!")
+            print("   É recomendado reiniciar o script para que as alterações tenham efeito.")
+
         except subprocess.CalledProcessError as e:
+            # Imprime o erro detalhado do Git para ajudar a diagnosticar
+            error_details = e.stderr.strip() if e.stderr else e.stdout.strip()
             print(f"❌ Erro ao aplicar atualização: {e}")
-    elif status == "divergente":
-        print("⚠️ Divergência detectada. Recomenda-se reinstalar o script.")
+            if error_details:
+                print(f"   Detalhes do Git: {error_details}")
