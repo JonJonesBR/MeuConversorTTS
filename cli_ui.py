@@ -140,9 +140,9 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
                     return str(path_sel)
             else:
                 print("❌ Opção inválida.")
-        except (ValueError, IndexError):
-            print("❌ Seleção inválida.")
-        await asyncio.sleep(0.5)
+        except (ValueError, IndexError, asyncio.CancelledError):
+            print("❌ Seleção inválida ou cancelada.")
+            await asyncio.sleep(0.5)
 
 # ================== LÓGICA CENTRAL DE CONVERSÃO ==================
 
@@ -171,8 +171,13 @@ async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
     
     semaphore = asyncio.Semaphore(config.LOTE_MAXIMO_TAREFAS_CONCORRENTES)
     
+    # Função auxiliar para gerir o semáforo
+    async def run_conversion_with_semaphore(p_texto, v, caminho, i, total):
+        async with semaphore:
+            return await tts_service.converter_chunk_tts(p_texto, v, caminho, i, total)
+
     tarefas = [
-        tts_service.converter_chunk_tts(parte, voz, arquivos_mp3_temporarios[i], i + 1, len(partes_texto), semaphore)
+        run_conversion_with_semaphore(parte, voz, arquivos_mp3_temporarios[i], i + 1, len(partes_texto))
         for i, parte in enumerate(partes_texto)
     ]
 
@@ -241,7 +246,7 @@ async def iniciar_conversao_tts():
     caminho_arquivo_orig = await _navegador_de_sistema(selecionar_pasta=False)
     if not caminho_arquivo_orig or shared_state.CANCELAR_PROCESSAMENTO: return
 
-    voz_padrao = settings_manager.obter_configuracao('voz_padrao')
+    voz_padrao = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
     
     if await obter_confirmacao(f"\nUsar a voz padrão ({voz_padrao})?", default_yes=True):
         voz_escolhida = voz_padrao
@@ -284,7 +289,7 @@ async def iniciar_conversao_em_lote():
         return
 
     print(f"\n✅ {len(ficheiros_a_converter)} ficheiro(s) encontrado(s).")
-    voz_padrao = settings_manager.obter_configuracao('voz_padrao')
+    voz_padrao = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
     print(f"\nℹ️ A conversão usará a voz padrão: {voz_padrao}")
 
     if not await obter_confirmacao("\nDeseja iniciar a conversão em lote?", default_yes=True):
@@ -325,10 +330,10 @@ async def testar_vozes_tts():
         voz_escolhida = config.VOZES_PT_BR[escolha_idx - 1]
         
         while not shared_state.CANCELAR_PROCESSAMENTO:
-            velocidade_padrao = settings_manager.obter_configuracao('velocidade_padrao')
+            velocidade_padrao = settings_manager.obter_configuracao('velocidade_padrao') or "1.0"
             print("\n-----------------------------------")
             print(f"Voz selecionada: {voz_escolhida}")
-            print(f"Velocidade: {velocidade_padrao}")
+            print(f"Velocidade: x{velocidade_padrao}")
             
             texto_exemplo = await aioconsole.ainput("Digite o texto para teste (ou 'V' para voltar): ")
             if shared_state.CANCELAR_PROCESSAMENTO or texto_exemplo.strip().upper() == 'V':
@@ -492,12 +497,12 @@ async def menu_gerenciar_configuracoes():
     while not shared_state.CANCELAR_PROCESSAMENTO:
         limpar_tela()
         print("⚙️ MENU DE CONFIGURAÇÕES")
-        voz_atual = settings_manager.obter_configuracao('voz_padrao')
-        velocidade_atual = settings_manager.obter_configuracao('velocidade_padrao')
+        voz_atual = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
+        velocidade_atual = settings_manager.obter_configuracao('velocidade_padrao') or "1.0"
         
         print(f"\nConfigurações atuais:")
         print(f"  Voz padrão: {voz_atual}")
-        print(f"  Velocidade padrão: {velocidade_atual}")
+        print(f"  Velocidade padrão: x{velocidade_atual}")
         print("\nOpções:")
         print("  1. Alterar voz padrão")
         print("  2. Alterar velocidade padrão")
@@ -515,19 +520,19 @@ async def menu_gerenciar_configuracoes():
             escolha_voz = await obter_opcao_numerica("Escolha a nova voz", len(config.VOZES_PT_BR))
             if 1 <= escolha_voz <= len(config.VOZES_PT_BR):
                 nova_voz = config.VOZES_PT_BR[escolha_voz - 1]
-                settings_manager.salvar_configuracoes(nova_voz, velocidade_atual) # Corrigido para salvar a config correta
+                settings_manager.salvar_configuracoes(nova_voz, velocidade_atual)
                 print(f"✅ Voz padrão alterada para: {nova_voz}")
         elif escolha == 2:
             try:
                 nova_velocidade_str = await aioconsole.ainput(f"Nova velocidade (ex: 1.2, atual: {velocidade_atual}): ")
                 nova_velocidade = float(nova_velocidade_str.replace(',', '.'))
                 if 0.5 <= nova_velocidade <= 3.0:
-                    settings_manager.salvar_configuracoes(voz_atual, f"{nova_velocidade:.2f}") # Corrigido para salvar a config correta
+                    settings_manager.salvar_configuracoes(voz_atual, f"{nova_velocidade:.2f}")
                     print(f"✅ Velocidade padrão alterada para: {nova_velocidade:.2f}")
                 else:
                     print("⚠️ Velocidade fora do intervalo permitido (0.5 a 3.0).")
-            except (ValueError, TypeError):
-                print("⚠️ Valor inválido para velocidade.")
+            except (ValueError, TypeError, asyncio.CancelledError):
+                print("⚠️ Valor inválido para velocidade ou operação cancelada.")
         
         await asyncio.sleep(1.5)
 
