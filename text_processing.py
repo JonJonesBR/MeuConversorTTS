@@ -30,33 +30,24 @@ TEXTOS_REPETIDOS_PARA_REMOVER = [
 def _remover_lixo_textual(texto: str) -> str:
     """Remove cabeçalho inicial e textos de rodapé repetidos."""
     print("   -> Removendo cabeçalhos e rodapés...")
-    # Remove tudo antes do primeiro capítulo
     padrao_primeiro_cap = re.compile(r'(cap[íi]tulo)', re.IGNORECASE)
     match = padrao_primeiro_cap.search(texto)
     if match:
         texto = texto[match.start():]
     
-    # Remove os textos repetitivos de copyright/distribuição
     for frase in TEXTOS_REPETIDOS_PARA_REMOVER:
         texto = texto.replace(frase, "")
         
     return texto
 
 def _remontar_paragrafos(texto: str) -> str:
-    """A função mais crucial: junta linhas quebradas incorretamente."""
+    """Junta linhas quebradas incorretamente para restaurar os parágrafos."""
     print("   -> Remontando parágrafos quebrados...")
     
-    # Usa um placeholder para quebras de parágrafo genuínas (linhas em branco)
     placeholder_paragrafo = "|||NEW_PARAGRAPH|||"
     texto_com_placeholders = re.sub(r'\n\s*\n', placeholder_paragrafo, texto)
-    
-    # Remove todas as quebras de linha restantes, que estão no meio das frases
     texto_sem_quebras = texto_com_placeholders.replace('\n', ' ')
-    
-    # Restaura as quebras de parágrafo
     texto_corrigido = texto_sem_quebras.replace(placeholder_paragrafo, '\n\n')
-    
-    # Junta palavras que foram separadas por hífen no final da linha
     texto_corrigido = re.sub(r'(\w+)-\s+', r'\1', texto_corrigido)
     
     return texto_corrigido
@@ -86,7 +77,6 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
     """Converte números para texto por extenso (cardinais, ordinais, monetários)."""
     print("   -> Expandindo números e abreviações...")
 
-    # Função interna para converter ordinais, com a correção do 'ordinal_female'
     def substituir_ordinal(match):
         try:
             numero = int(match.group(1))
@@ -95,34 +85,27 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
             if terminacao in ('o', 'º'):
                 return num2words(numero, lang='pt_BR', to='ordinal')
             elif terminacao in ('a', 'ª'):
-                # **INÍCIO DA CORREÇÃO**
-                # Pega a forma masculina e a adapta para a feminina.
                 ordinal_masc = num2words(numero, lang='pt_BR', to='ordinal')
                 if ordinal_masc.endswith('o'):
                     return ordinal_masc[:-1] + 'a'
-                return ordinal_masc  # Fallback para casos como 'terceira' que a lib pode já retornar certo
-                # **FIM DA CORREÇÃO**
+                return ordinal_masc
             return match.group(0)
         except (ValueError, NotImplementedError):
-             return match.group(0) # Retorna o original se houver erro
+             return match.group(0)
              
     texto = re.sub(r'\b(\d+)([oOaAºª])\b', substituir_ordinal, texto)
 
-    # Converte valores monetários (ex: R$ 50,00)
     def substituir_monetario(match):
         valor = match.group(1).replace('.', '')
         return f"{num2words(int(valor), lang='pt_BR')} reais"
     texto = re.sub(r'R\$\s*(\d[\d.]*)', substituir_monetario, texto)
     
-    # Converte números cardinais, ignorando anos e números muito grandes
     def substituir_cardinal(match):
         num_str = match.group(0)
         try:
             num_int = int(num_str)
-            if 1900 <= num_int <= 2100:
-                return num_str
-            if len(num_str) > 6:
-                return num_str
+            if 1900 <= num_int <= 2100: return num_str
+            if len(num_str) > 6: return num_str
             return num2words(num_int, lang='pt_BR')
         except ValueError:
             return num_str
@@ -134,25 +117,18 @@ def _limpeza_final(texto: str) -> str:
     """Aplica as limpezas finais de pontuação, espaçamento e diálogos."""
     print("   -> Realizando limpezas finais...")
 
-    # Remove números de página que possam ter sobrado
     texto = re.sub(r'^\s*\d+\s*$', '', texto, flags=re.MULTILINE)
     
-    # Garante que diálogos com travessão comecem em um novo parágrafo
-    texto = re.sub(r'([.!?])\s*([—―-–])', r'\1\n\n\2', texto)
+    # **INÍCIO DA CORREÇÃO**
+    # Trata os diferentes tipos de travessão como caracteres individuais, não como um intervalo.
+    texto = re.sub(r'([.!?])\s*([—―–-])', r'\1\n\n\2', texto)
+    # **FIM DA CORREÇÃO**
     
-    # Remove espaços antes de pontuação
     texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
-    
-    # Garante um espaço após a pontuação
     texto = re.sub(r'([,.!?;:])(\w)', r'\1 \2', texto)
-
-    # Remove espaços duplos ou mais
     texto = re.sub(r' {2,}', ' ', texto)
-
-    # Remove quebras de linha múltiplas, deixando no máximo duas
     texto = re.sub(r'\n{3,}', '\n\n', texto)
 
-    # Garante que cada parágrafo termine com uma pontuação final
     paragrafos_finais = []
     for p in texto.split('\n\n'):
         p_strip = p.strip()
@@ -176,7 +152,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     texto = unicodedata.normalize('NFKC', texto_bruto)
     texto = _remover_lixo_textual(texto)
     
-    # Etapa 2: A etapa mais crítica, reconstruir os parágrafos corretamente
+    # Etapa 2: Reconstrução dos parágrafos
     texto = _remontar_paragrafos(texto)
 
     # Etapa 3: Formatação de elementos estruturais
@@ -185,7 +161,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     # Etapa 4: Expansão de números para leitura natural
     texto = _expandir_numeros_e_abreviacoes(texto)
     
-    # Etapa 5: Limpeza final de pontuação, espaçamento e diálogos
+    # Etapa 5: Limpeza final de pontuação e espaçamento
     texto = _limpeza_final(texto)
     
     print("✅ Formatação de texto concluída.")
