@@ -33,6 +33,15 @@ CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM: Dict[str, str] = {
     'VINTE E NOVE': '29', 'TRINTA': '30'
 }
 
+# Correções para artefatos específicos de OCR ou extração.
+CORRECOES_ESPECIFICAS: Dict[str, str] = {
+    'observaçãoervadores': 'observadores',
+    'observaçãoervando': 'observando',
+    'observaçãoervava': 'observava',
+    'gramasunnings': 'Grunnings',
+    'Sr:;': 'Sr.'
+}
+
 # Mapeamento de abreviações e siglas para sua forma extensa.
 # Organizado por categorias para melhor manutenção.
 # A chave é uma expressão regular para garantir a substituição correta.
@@ -81,11 +90,10 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bPça\.', re.IGNORECASE): 'Praça',
     re.compile(r'\bEst\.', re.IGNORECASE): 'Estrada',
     re.compile(r'\bS/N\b', re.IGNORECASE): 'sem número',
-    re.compile(r'\bNº\b', re.IGNORECASE): 'número',
-    re.compile(r'\bkm\b', re.IGNORECASE): 'quilômetro',
+    re.compile(r'\bn\.\s*o\.', re.IGNORECASE): 'número', # AJUSTE: Captura "n. o."
+    re.compile(r'\bN[º°]\b', re.IGNORECASE): 'número', # AJUSTE: Não captura mais a palavra "no"
 
     # --- Unidades e Medidas ---
-    re.compile(r'\bN[º°o]\b', re.IGNORECASE): 'número',
     re.compile(r'\bKg\b', re.IGNORECASE): 'quilogramas', # Plural soa mais natural
     re.compile(r'\bKm\b', re.IGNORECASE): 'quilômetros',
     re.compile(r'\bcm\b', re.IGNORECASE): 'centímetros',
@@ -100,73 +108,12 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bmin\b', re.IGNORECASE): 'minuto',
     re.compile(r'\bsg\b', re.IGNORECASE): 'segundo',
     re.compile(r'\bmg\b', re.IGNORECASE): 'miligrama',
-    re.compile(r'\bg\b', re.IGNORECASE): 'grama',
+    re.compile(r'\bgr\.?\b', re.IGNORECASE): 'gramas', # AJUSTE: Não captura "gr" no início de palavras como "grande"
 
-    # --- Siglas Institucionais ---
-    re.compile(r'\bIBGE\b'): 'Instituto Brasileiro de Geografia e Estatística',
-    re.compile(r'\bFMI\b'): 'Fundo Monetário Internacional',
+    # --- Siglas Institucionais (Exemplos) ---
     re.compile(r'\bONU\b'): 'Organização das Nações Unidas',
     re.compile(r'\bOMS\b'): 'Organização Mundial da Saúde',
-    re.compile(r'\bUNESCO\b'): 'Organização das Nações Unidas para a Educação, a Ciência e a Cultura',
-    re.compile(r'\bFIFA\b'): 'Federação Internacional de Futebol Associado',
-    re.compile(r'\bUEFA\b'): 'União das Associações Europeias de Futebol',
-    re.compile(r'\bCPI\b'): 'Corte Penal Internacional',
     re.compile(r'\bSTF\b'): 'Supremo Tribunal Federal',
-    re.compile(r'\bSTJ\b'): 'Superior Tribunal de Justiça',
-    re.compile(r'\bTSE\b'): 'Tribunal Superior Eleitoral',
-    re.compile(r'\bTST\b'): 'Tribunal Superior do Trabalho',
-    re.compile(r'\bMP\b'): 'Ministério Público',
-    re.compile(r'\bPCdoB\b'): 'Partido Comunista do Brasil',
-    re.compile(r'\bPSB\b'): 'Partido Socialista Brasileiro',
-    re.compile(r'\bPT\b'): 'Partido dos Trabalhadores',
-    re.compile(r'\bPSDB\b'): 'Partido da Social Democracia Brasileira',
-    re.compile(r'\bMDB\b'): 'Movimento Democrático Brasileiro',
-    re.compile(r'\bPCB\b'): 'Partido Comunista Brasileiro',
-    re.compile(r'\bPMDB\b'): 'Partido do Movimento Democrático Brasileiro',
-    re.compile(r'\bPSOL\b'): 'Partido Socialismo e Liberdade',
-    re.compile(r'\bPSD\b'): 'Partido Social Democrático',
-    re.compile(r'\bPSL\b'): 'Partido Social Liberal',
-    re.compile(r'\bPTB\b'): 'Partido Trabalhista Brasileiro',
-    re.compile(r'\bPDT\b'): 'Partido Democrático Trabalhista',
-    re.compile(r'\bPV\b'): 'Partido Verde',
-    re.compile(r'\bRede\b'): 'Rede Sustentabilidade',
-    re.compile(r'\bCID\b'): 'Classificação Internacional de Doenças',
-    re.compile(r'\bCF\b'): 'Constituição Federal',
-    re.compile(r'\bCLT\b'): 'Consolidação das Leis do Trabalho',
-    re.compile(r'\bCNPJ\b'): 'Cadastro Nacional da Pessoa Jurídica',
-    re.compile(r'\bCPF\b'): 'Cadastro de Pessoa Física',
-    re.compile(r'\bPIS\b'): 'Programa de Integração Social',
-    re.compile(r'\bCOFINS\b'): 'Contribuição para o Financiamento da Seguridade Social',
-    re.compile(r'\bICMS\b'): 'Imposto sobre Circulação de Mercadorias e Serviços',
-    re.compile(r'\bIPI\b'): 'Imposto sobre Produtos Industrializados',
-    re.compile(r'\bIR\b', re.IGNORECASE): 'Imposto de Renda',
-    re.compile(r'\bIRPF\b'): 'Imposto de Renda da Pessoa Física',
-    re.compile(r'\bIRPJ\b'): 'Imposto de Renda da Pessoa Jurídica',
-    re.compile(r'\bINSS\b'): 'Instituto Nacional do Seguro Social',
-    re.compile(r'\bIPCA\b'): 'Índice Nacional de Preços ao Consumidor Amplo',
-    re.compile(r'\bIGP-M\b'): 'Índice Geral de Preços do Mercado',
-    re.compile(r'\bFGTS\b'): 'Fundo de Garantia por Tempo de Serviço',
-    re.compile(r'\bSUS\b'): 'Sistema Único de Saúde',
-    re.compile(r'\bBNDES\b'): 'Banco Nacional de Desenvolvimento Econômico e Social',
-    re.compile(r'\bCaixa\b'): 'Caixa Econômica Federal',
-    re.compile(r'\bBB\b'): 'Banco do Brasil',
-    re.compile(r'\bCEF\b'): 'Caixa Econômica Federal',
-    re.compile(r'\bFies\b'): 'Fundo de Financiamento Estudantil',
-    re.compile(r'\bENEM\b'): 'Exame Nacional do Ensino Médio',
-    re.compile(r'\bINEP\b'): 'Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira',
-    re.compile(r'\bANP\b'): 'Agência Nacional do Petróleo, Gás Natural e Biocombustíveis',
-    re.compile(r'\bANAC\b'): 'Agência Nacional de Aviação Civil',
-    re.compile(r'\bANS\b'): 'Agência Nacional de Saúde Suplementar',
-    re.compile(r'\bANVISA\b'): 'Agência Nacional de Vigilância Sanitária',
-    re.compile(r'\bANEEL\b'): 'Agência Nacional de Energia Elétrica',
-    re.compile(r'\bFUNAI\b'): 'Fundação Nacional do Índio',
-    re.compile(r'\bIBAMA\b'): 'Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis',
-    re.compile(r'\bDNIT\b'): 'Departamento Nacional de Infraestrutura de Transportes',
-    re.compile(r'\bCVM\b'): 'Comissão de Valores Mobiliários',
-    re.compile(r'\bBC\b'): 'Banco Central',
-    re.compile(r'\bBACEN\b'): 'Banco Central do Brasil',
-    re.compile(r'\bANS\b'): 'Agência Nacional de Saúde Suplementar',
-    re.compile(r'\bCVM\b'): 'Comissão de Valores Mobiliários',
 
     # --- Diversos ---
     re.compile(r'\bEtc\.?', re.IGNORECASE): 'et cetera',
@@ -175,112 +122,8 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bp\.\s*(\d+)', re.IGNORECASE): r'página \1', # Ex: p. 12
     re.compile(r'\bpágs?\.', re.IGNORECASE): 'páginas',
     re.compile(r'\bcf\.', re.IGNORECASE): 'conforme',
-    re.compile(r'\bvide\b', re.IGNORECASE): 'veja',
-    re.compile(r'\bex\.\s+gr\.', re.IGNORECASE): 'exemplo gráfico',
-    re.compile(r'\bid\.', re.IGNORECASE): 'idem', # mesmo que
-    re.compile(r'\bloc\.\scit\.', re.IGNORECASE): 'loco citato', # no lugar citado
-    re.compile(r'\bop\.\scit\.', re.IGNORECASE): 'opere citato', # obra citada
-    re.compile(r'\bapud\b', re.IGNORECASE): 'citado por',
-    re.compile(r'\bgr\.?(\s+de\s+)?', re.IGNORECASE): 'gramas', # Unidade de medida
-    re.compile(r'\bvol\.', re.IGNORECASE): 'volume',
-    re.compile(r'\bed\.', re.IGNORECASE): 'edição',
-    re.compile(r'\brev\.', re.IGNORECASE): 'revisado',
-    re.compile(r'\bcorr\.', re.IGNORECASE): 'corrigido',
-    re.compile(r'\bref\.', re.IGNORECASE): 'referência',
-    re.compile(r'\bnasc\.', re.IGNORECASE): 'nascimento',
-    re.compile(r'\bfalec\.', re.IGNORECASE): 'falecimento',
-    re.compile(r'\bproc\.', re.IGNORECASE): 'processo',
-    re.compile(r'\bproc\.\s+nº', re.IGNORECASE): 'processo número',
-    re.compile(r'\breg\.', re.IGNORECASE): 'registro',
-    re.compile(r'\breg\.\s+nº', re.IGNORECASE): 'registro número',
-    re.compile(r'\bref\.\s+nº', re.IGNORECASE): 'referência número',
-    re.compile(r'\bcod\.', re.IGNORECASE): 'código',
-    re.compile(r'\bliv\.', re.IGNORECASE): 'livro',
-    re.compile(r'\bart\.', re.IGNORECASE): 'artigo',
-    re.compile(r'\bparág\.', re.IGNORECASE): 'parágrafo',
-    re.compile(r'\binc\.', re.IGNORECASE): 'inciso',
-    re.compile(r'\balínea\b', re.IGNORECASE): 'alínea',
-    re.compile(r'\bitem\b', re.IGNORECASE): 'item',
-    re.compile(r'\bitem\s+nº', re.IGNORECASE): 'item número',
-    re.compile(r'\bitem\s+(\d+)', re.IGNORECASE): r'item \1',
-    re.compile(r'\bitem\s+([IVXLCDM]+)', re.IGNORECASE): r'item \1', # algarismos romanos
-    re.compile(r'\bitem\s+([ivxlcdm]+)', re.IGNORECASE): r'item \1', # algarismos romanos
-    re.compile(r'\bnasc\.', re.IGNORECASE): 'nascimento',
-    re.compile(r'\bfalec\.', re.IGNORECASE): 'falecimento',
-    re.compile(r'\bmatr\.', re.IGNORECASE): 'matrícula',
-    re.compile(r'\bcertid\.', re.IGNORECASE): 'certidão',
-    re.compile(r'\bexp\.', re.IGNORECASE): 'experiência',
-    re.compile(r'\brec\.', re.IGNORECASE): 'recomendação',
-    re.compile(r'\brecom\.', re.IGNORECASE): 'recomendação',
-    re.compile(r'\bexper\.', re.IGNORECASE): 'experiência',
-    re.compile(r'\bhist\.', re.IGNORECASE): 'histórico',
-    re.compile(r'\bhistórico\s+de\s+', re.IGNORECASE): 'histórico de',
-    re.compile(r'\bcart\.', re.IGNORECASE): 'carteira',
-    re.compile(r'\bdoc\.', re.IGNORECASE): 'documento',
-    re.compile(r'\bform\.', re.IGNORECASE): 'formulário',
-    re.compile(r'\breg\.', re.IGNORECASE): 'registro',
-    re.compile(r'\brel\.', re.IGNORECASE): 'relação',
-    re.compile(r'\bres\.', re.IGNORECASE): 'resumo',
-    re.compile(r'\bresult\.', re.IGNORECASE): 'resultado',
-    re.compile(r'\bresp\.', re.IGNORECASE): 'responsável',
-    re.compile(r'\bresp\.\s+por', re.IGNORECASE): 'responsável por',
-    re.compile(r'\bresp\.\s+téc\.', re.IGNORECASE): 'responsável técnico',
-    re.compile(r'\bresp\.\s+adm\.', re.IGNORECASE): 'responsável administrativo',
-    re.compile(r'\btel\.', re.IGNORECASE): 'telefone',
-    re.compile(r'\bcel\.', re.IGNORECASE): 'celular',
-    re.compile(r'\bfax\b', re.IGNORECASE): 'fax',
-    re.compile(r'\bemail\b', re.IGNORECASE): 'email',
-    re.compile(r'\bweb\b', re.IGNORECASE): 'web',
-    re.compile(r'\bsite\b', re.IGNORECASE): 'site',
-    re.compile(r'\bhtml\b', re.IGNORECASE): 'HTML',
-    re.compile(r'\bcss\b', re.IGNORECASE): 'CSS',
-    re.compile(r'\bxml\b', re.IGNORECASE): 'XML',
-    re.compile(r'\bjson\b', re.IGNORECASE): 'JSON',
-    re.compile(r'\bftp\b', re.IGNORECASE): 'FTP',
-    re.compile(r'\bhttp\b', re.IGNORECASE): 'HTTP',
-    re.compile(r'\bhttps\b', re.IGNORECASE): 'HTTPS',
-    re.compile(r'\bssl\b', re.IGNORECASE): 'SSL',
-    re.compile(r'\bsql\b', re.IGNORECASE): 'SQL',
-    re.compile(r'\bapi\b', re.IGNORECASE): 'API',
     re.compile(r'\bi\.e\.', re.IGNORECASE): 'isto é',
     re.compile(r'\be\.g\.', re.IGNORECASE): 'por exemplo',
-    re.compile(r'\bviz\.', re.IGNORECASE): 'a saber',
-    re.compile(r'\betc\b', re.IGNORECASE): 'e outros',
-    re.compile(r'\bca\.\s+', re.IGNORECASE): 'cerca de ',
-    re.compile(r'\bcirca\s+', re.IGNORECASE): 'cerca de ',
-    re.compile(r'\baprox\.', re.IGNORECASE): 'aproximadamente',
-    re.compile(r'\bsto\s+', re.IGNORECASE): 'santo ',
-    re.compile(r'\bsta\s+', re.IGNORECASE): 'santa ',
-
-    # --- Siglas Comuns (Adicionar conforme necessidade) ---
-    re.compile(r'\bEUA\b'): 'Estados Unidos da América',
-    re.compile(r'\bRJ\b'): 'Rio de Janeiro',
-    re.compile(r'\bSP\b'): 'São Paulo',
-    re.compile(r'\bDF\b'): 'Distrito Federal',
-    re.compile(r'\bMG\b'): 'Minas Gerais',
-    re.compile(r'\bRS\b'): 'Rio Grande do Sul',
-    re.compile(r'\bPR\b'): 'Paraná',
-    re.compile(r'\bSC\b'): 'Santa Catarina',
-    re.compile(r'\bAM\b'): 'Amazonas',
-    re.compile(r'\bPA\b'): 'Pará',
-    re.compile(r'\bBA\b'): 'Bahia',
-    re.compile(r'\bPE\b'): 'Pernambuco',
-    re.compile(r'\bCE\b'): 'Ceará',
-    re.compile(r'\bMA\b'): 'Maranhão',
-    re.compile(r'\bPI\b'): 'Piauí',
-    re.compile(r'\bPB\b'): 'Paraíba',
-    re.compile(r'\bRN\b'): 'Rio Grande do Norte',
-    re.compile(r'\bAL\b'): 'Alagoas',
-    re.compile(r'\bSE\b'): 'Sergipe',
-    re.compile(r'\bES\b'): 'Espírito Santo',
-    re.compile(r'\bGO\b'): 'Goiás',
-    re.compile(r'\bMT\b'): 'Mato Grosso',
-    re.compile(r'\bMS\b'): 'Mato Grosso do Sul',
-    re.compile(r'\bTO\b'): 'Tocantins',
-    re.compile(r'\bRO\b'): 'Rondônia',
-    re.compile(r'\bAC\b'): 'Acre',
-    re.compile(r'\bRR\b'): 'Roraima',
-    re.compile(r'\bAP\b'): 'Amapá',
 }
 
 # ================== FUNÇÕES DE LIMPEZA E NORMALIZAÇÃO ==================
@@ -293,26 +136,16 @@ def _remover_lixo_textual(texto: str) -> str:
             return texto
             
         # Tenta encontrar o primeiro capítulo para remover qualquer texto introdutório
-        # A expressão `(?s)` permite que `.` corresponda a quebras de linha
-        match = re.search(r'(?s)(cap[íi]tulo\s+[\w\d]+|sum[áa]rio|pr[óo]logo|pref[áa]cio)', texto, re.IGNORECASE)
+        match = re.search(r'(cap[íi]tulo\s+[\w\d]+|sum[áa]rio|pr[óo]logo|pref[áa]cio)', texto, re.IGNORECASE)
         if match:
             texto = texto[match.start():]
 
-        # Remove textos repetitivos comuns (ex: notas de copyright de versões não oficiais)
+        # Remove textos repetitivos comuns
         textos_a_remover = [
             r"Esse livro é protegido.*",
-            r"A Detonando Home Page.*",
-            r"Distribuído gratuitamente.*",
             r"www\.\s*portaldetonando\.\s*cjb\.\s*net.*",
             r"\bCopyright\b.*",
-            r"\bTodos os direitos reservados\b.*",
-            r"\bDireitos autorais\b.*",
-            r"\bReservados todos os direitos\b.*",
-            r"\bNenhuma parte deste livro\b.*",
-            r"\bproibida a reprodução\b.*",
-            r"\bproibida a cópia\b.*",
-            r"\bvedado o armazenamento\b.*",
-            r"\bsem a devida permissão\b.*"
+            r"Distribuído gratuitamente.*",
         ]
         for padrao in textos_a_remover:
             texto = re.sub(padrao, "", texto, flags=re.IGNORECASE | re.MULTILINE)
@@ -322,6 +155,50 @@ def _remover_lixo_textual(texto: str) -> str:
         logger.error(f"Erro ao remover lixo textual: {e}")
         return texto
 
+def _remover_artefatos_visuais(texto: str) -> str:
+    """Remove elementos visuais como separadores de cena e números de página."""
+    try:
+        logger.info("Removendo artefatos visuais...")
+        if not texto:
+            return texto
+        
+        # Remove separadores de cena (ex: "_. " em uma linha)
+        texto = re.sub(r'^\s*_\.\s*$', '', texto, flags=re.MULTILINE)
+
+        # Remove números de página que aparecem no meio do texto, geralmente no final de uma linha
+        # Cria uma lista de números por extenso para busca
+        numeros_extenso = list(CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.keys())
+        numeros_extenso.extend(['cem', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos']) # Adicionar mais se necessário
+        padrao_palavras = r'\b(' + '|'.join(numeros_extenso) + r')\b\s*\.'
+        
+        # Remove números (dígitos ou por extenso) que quebram parágrafos
+        texto = re.sub(rf'({padrao_palavras})\s*\n', '\n', texto, flags=re.IGNORECASE)
+        texto = re.sub(r'(\b\d+\b\s*\.)\s*\n', '\n', texto, flags=re.IGNORECASE)
+
+        # Remove os mesmos padrões quando seguidos por um espaço e uma letra maiúscula (início de frase)
+        texto = re.sub(rf'\s+{padrao_palavras}\s+(?=[A-Z])', ' ', texto, flags=re.IGNORECASE)
+        texto = re.sub(r'\s+\b\d+\b\s*\.\s+(?=[A-Z])', ' ', texto, flags=re.IGNORECASE)
+
+        return texto
+    except Exception as e:
+        logger.error(f"Erro ao remover artefatos visuais: {e}")
+        return texto
+
+def _corrigir_artefatos_especificos(texto: str) -> str:
+    """Corrige erros de extração de texto específicos e conhecidos."""
+    try:
+        logger.info("Corrigindo artefatos de texto específicos...")
+        if not texto:
+            return texto
+            
+        for erro, correcao in CORRECOES_ESPECIFICAS.items():
+            texto = texto.replace(erro, correcao)
+        return texto
+    except Exception as e:
+        logger.error(f"Erro ao corrigir artefatos específicos: {e}")
+        return texto
+
+
 def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
     """Normaliza caracteres Unicode, aspas, travessões e outros símbolos."""
     try:
@@ -329,19 +206,19 @@ def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
         if not texto:
             return texto
             
-        # Normalização Unicode para consistência (ex: 'é' e 'e´' viram a mesma coisa)
         texto = unicodedata.normalize('NFKC', texto)
 
         substituicoes = {
-            '[“”«»]': '"',  # Aspas curvas/francesas para aspas retas
-            "[‘’]": "'",    # Apóstrofos curvos para retos
-            '[–—―‐‑]': '—',    # Hífens e barras para travessão padrão
-            '…': '...',    # Reticências
+            '[“”«»]': '"',
+            "[‘’]": "'",
+            '[–—―‐‑]': '—',
+            '…': '...',
+            '; ': ', ', # AJUSTE: Converte ponto e vírgula em vírgula
+            ';': ',',   # AJUSTE: Converte ponto e vírgula em vírgula
         }
         for padrao, sub in substituicoes.items():
             texto = re.sub(padrao, sub, texto)
 
-        # Garante espaçamento consistente ao redor de travessões para diálogos
         texto = re.sub(r'\s*—\s*', ' — ', texto)
         return texto
     except Exception as e:
@@ -355,49 +232,25 @@ def _substituir_simbolos_por_extenso(texto: str) -> str:
         if not texto:
             return texto
             
-        # Primeiro, remover formatação markdown e outros símbolos de formatação
-        # Substituir **texto** por texto (deixar espaços para não juntar palavras)
         texto = re.sub(r'\*\*(.*?)\*\*', r' \1 ', texto)
-        # Substituir *texto* por texto (deixar espaços para não juntar palavras)
         texto = re.sub(r'\*(.*?)\*', r' \1 ', texto)
-        # Substituir __texto__ por texto (deixar espaços para não juntar palavras)
         texto = re.sub(r'__(.*?)__', r' \1 ', texto)
-        # Substituir _texto_ por texto (deixar espaços para não juntar palavras)
         texto = re.sub(r'_(.*?)_', r' \1 ', texto)
         
-        # Mapeamento de símbolos para sua forma por extenso.
-        # As chaves são strings literais, não regex.
-        # Importante: Excluir o símbolo $ pois R$ é tratado separadamente em _expandir_numeros
         substituicoes = {
             '&': ' e ',
             '@': ' arroba ',
-            '#': ' cerquilha ',  # Melhor que deixar em branco
-            '%': ' por cento ', # Melhor tratamento aqui
-            '/': ' barra ', # 'ou' pode causar confusão em algumas situações
-            '\\': ' ', # Barra invertida literal
+            '#': ' cerquilha ',
+            '%': ' por cento', # Removido espaço inicial para casos como "50%"
+            '/': ' barra ',
+            '\\': ' ',
             '+': ' mais ',
             '=': ' igual a ',
-            '<': ' menor que ',
-            '>': ' maior que ',
-            '≤': ' menor ou igual a ',
-            '≥': ' maior ou igual a ',
-            '≠': ' diferente de ',
-            '≈': ' aproximadamente ',
-            '→': ' para ',
-            '←': ' de ',
-            '↑': ' acima de ',
-            '↓': ' abaixo de ',
         }
-
-        # Cria uma única expressão regular compilada.
-        # re.escape() garante que caracteres especiais (como $, +, \) sejam tratados literalmente.
-        # As chaves são ordenadas pela mais longa primeiro para evitar substituições parciais (ex: tratar '--' antes de '-').
         padrao_compilado = re.compile("|".join(
             re.escape(k) for k in sorted(substituicoes.keys(), key=len, reverse=True)
         ))
 
-        # A função de substituição (lambda) busca o valor correspondente no dicionário
-        # para cada símbolo encontrado pelo padrão compilado.
         return padrao_compilado.sub(lambda m: substituicoes[m.group(0)], texto)
     except Exception as e:
         logger.error(f"Erro ao substituir símbolos por extenso: {e}")
@@ -411,22 +264,25 @@ def _remontar_paragrafos(texto: str) -> str:
         if not texto:
             return texto
             
-        # Une palavras hifenizadas no final da linha (ex: "rapida-\nmente" -> "rapidamente")
+        # Une sentenças quebradas por uma nova linha
+        texto = re.sub(r'([.!?])\n(\w)', r'\1 \2', texto)
         texto = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', texto)
 
-        # Substitui quebras de linha únicas por espaço, preservando parágrafos (quebras duplas)
         linhas = texto.split('\n')
         paragrafos_remontados = []
         paragrafo_atual = ""
         for linha in linhas:
             linha = linha.strip()
-            if not linha: # Linha vazia indica fim de parágrafo
+            if not linha:
                 if paragrafo_atual:
                     paragrafos_remontados.append(paragrafo_atual)
                     paragrafo_atual = ""
             else:
-                paragrafo_atual += " " + linha
-        if paragrafo_atual: # Adiciona o último parágrafo
+                if paragrafo_atual:
+                    paragrafo_atual += " " + linha
+                else:
+                    paragrafo_atual = linha
+        if paragrafo_atual:
             paragrafos_remontados.append(paragrafo_atual)
 
         return "\n\n".join(p.strip() for p in paragrafos_remontados)
@@ -446,21 +302,19 @@ def _formatar_capitulos(texto: str) -> str:
         def substituir_capitulo(match: re.Match) -> str:
             prefixo = match.group(1).strip()
             numero_str = match.group(2).strip().upper()
-            titulo = match.group(3).strip() if match.group(3) else ""
-
-            # Converte número por extenso para numeral (Ex: "UM" -> "1")
+            titulo_opcional = match.group(3)
+            
+            titulo = titulo_opcional.strip().rstrip(' .') if titulo_opcional else ""
             numero_final = CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero_str, numero_str)
 
-            # Garante que o título termine com pontuação para uma pausa na leitura
-            if titulo and not re.search(r'[.!?]$', titulo):
-                titulo += "."
+            if titulo:
+                return f"\n\n{prefixo.upper()} {numero_final}. {titulo}.\n\n"
+            else:
+                return f"\n\n{prefixo.upper()} {numero_final}.\n\n"
 
-            return f"\n\n{prefixo.upper()} {numero_final}.\n\n{titulo}\n\n"
-
-        # Padrão mais flexível para capturar "CAPÍTULO 1", "CAPÍTULO UM", "PRÓLOGO", etc.
-        # com ou sem título na linha seguinte.
+        # AJUSTE: Padrão mais robusto para capturar títulos de capítulo com ou sem título de texto
         padrao = re.compile(
-            r'^\s*(cap[íi]tulo|pr[óo]logo|ep[íi]logo|pref[áa]cio)\s+([\d\w\s]+)\s*\.?\s*\n\n([^\n]+)',
+            r'^\s*(cap[íi]tulo)\s+([\d\w\s]+)\s*[-–—.]*\s*(?:\n\s*\n\s*(.*?)\s*\.?)?',
             re.IGNORECASE | re.MULTILINE
         )
         return padrao.sub(substituir_capitulo, texto)
@@ -489,7 +343,6 @@ def _expandir_numeros(texto: str) -> str:
         if not texto:
             return texto
 
-        # Converte números ordinais: 2º -> segundo, 3ª -> terceira
         def ordinal(match: re.Match) -> str:
             try:
                 n = int(match.group(1))
@@ -498,37 +351,19 @@ def _expandir_numeros(texto: str) -> str:
                     return num2words(n, lang='pt_BR', to='ordinal')
                 elif sufixo in ('a', 'ª'):
                     ordinal_masc = num2words(n, lang='pt_BR', to='ordinal')
-                    # Converte ordinal masculino para feminino
-                    if ordinal_masc.endswith('o'):
-                        return ordinal_masc[:-1] + 'a'
-                    elif ordinal_masc.endswith('os'):
-                        return ordinal_masc[:-2] + 'as'
-                    else:
-                        return ordinal_masc
+                    return ordinal_masc[:-1] + 'a' if ordinal_masc.endswith('o') else ordinal_masc
             except (ValueError, IndexError):
                 return match.group(0)
             return match.group(0)
         texto = re.sub(r'\b(\d+)([oOaAºª])\b', ordinal, texto)
 
-        # Converte valores monetários: R$ 10,50 -> dez reais e cinquenta centavos
         def monetario(match: re.Match) -> str:
             try:
                 valor_str = match.group(1).replace('.', '').replace(',', '.')
-                partes = valor_str.split('.')
-                
-                if len(partes) == 1:
-                    reais = int(partes[0])
-                    centavos = 0
-                elif len(partes) == 2:
-                    reais = int(partes[0])
-                    # Garantir que temos exatamente 2 dígitos para centavos
-                    centavos_parte = partes[1]
-                    if len(centavos_parte) == 1:
-                        centavos = int(centavos_parte) * 10
-                    else:
-                        centavos = int(centavos_parte[:2])
-                else:
-                    return match.group(0)
+                reais_str, centavos_str = (valor_str.split('.') + ['0'])[:2]
+                reais = int(reais_str)
+                centavos_str = centavos_str.ljust(2, '0')[:2]
+                centavos = int(centavos_str)
                 
                 str_reais = num2words(reais, lang='pt_BR') + (' real' if reais == 1 else ' reais')
                 if centavos > 0:
@@ -539,13 +374,11 @@ def _expandir_numeros(texto: str) -> str:
                 return match.group(0)
         texto = re.sub(r'R\$\s*([\d.,]+)', monetario, texto)
 
-        # Converte números cardinais, ignorando anos e números muito longos
         def cardinal(match: re.Match) -> str:
             try:
                 num_str = match.group(0)
                 num_int = int(num_str)
                 
-                # Não converte números que parecem anos ou códigos/identificadores longos
                 if 1900 <= num_int <= 2100 or len(num_str) > 6:
                     return num_str
                     
@@ -566,23 +399,17 @@ def _limpeza_final(texto: str) -> str:
         if not texto:
             return texto
             
-        # Adiciona quebra de parágrafo antes de um diálogo iniciado por travessão, se não houver
-        texto = re.sub(r'([.!?\"])\\s*([—-])', r'\1\n\n\2', texto)
-
-        # Remove espaços antes de pontuação e garante espaço depois
+        texto = re.sub(r'([.!?"])\s*([—-])', r'\1\n\n\2', texto)
         texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
-        texto = re.sub(r'([,.!?;:])(\w)', r'\1 \2', texto)
-
-        # Remove espaços múltiplos e quebras de linha excessivas
+        texto = re.sub(r'([,.!?;:])(?=\w)', r'\1 ', texto) # AJUSTE: Garante espaço após pontuação
         texto = re.sub(r' {2,}', ' ', texto)
         texto = re.sub(r'\n{3,}', '\n\n', texto)
 
-        # Garante que parágrafos que não são diálogos terminem com pontuação
         paragrafos = texto.split('\n\n')
         paragrafos_formatados = []
         for p in paragrafos:
             p_strip = p.strip()
-            if p_strip and not p_strip.startswith('—') and not re.search(r'[.!?]$', p_strip):
+            if p_strip and not p_strip.startswith('—') and not re.search(r'[.!?"]$', p_strip):
                 p += '.'
             paragrafos_formatados.append(p)
 
@@ -597,13 +424,6 @@ def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str
     """
     Executa um pipeline completo de limpeza e formatação para preparar o texto
     para uma leitura natural e agradável em um sistema TTS.
-    
-    Args:
-        texto_bruto: Texto de entrada a ser processado
-        log_progresso: Se True, imprime mensagens de progresso
-        
-    Returns:
-        Texto processado e otimizado para TTS
     """
     if log_progresso:
         logger.info("Iniciando processamento completo do texto para TTS...")
@@ -613,16 +433,17 @@ def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str
         return ""
 
     try:
-        # Pipeline de processamento - ordem correta
-        texto = _remover_lixo_textual(texto_bruto)
-        texto = _normalizar_caracteres_e_pontuacao(texto)
+        # Pipeline de processamento com ordem ajustada
+        texto = preprocessar_texto(texto_bruto)
+        texto = _remover_lixo_textual(texto)
+        texto = _corrigir_artefatos_especificos(texto)
+        texto = _remover_artefatos_visuais(texto)
         texto = _remontar_paragrafos(texto)
-        # Primeiro, remover símbolos de formatação markdown, mas manter símbolos monetários intactos
+        texto = _normalizar_caracteres_e_pontuacao(texto)
         texto = _substituir_simbolos_por_extenso(texto)  
-        texto = _expandir_abreviacoes(texto)  # Expandir abreviações antes de números
-        # Processar números e moedas antes de qualquer outra substituição de símbolos
+        texto = _expandir_abreviacoes(texto)
         texto = _expandir_numeros(texto)      
-        texto = _formatar_capitulos(texto)    # Formatar capítulos após outras expansões
+        texto = _formatar_capitulos(texto)
         texto = _limpeza_final(texto)
 
         if log_progresso:
@@ -630,102 +451,56 @@ def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str
         return texto
     except Exception as e:
         logger.error(f"Erro no processamento completo do texto: {e}")
-        return texto_bruto  # Retorna o texto original em caso de erro
+        return texto_bruto
 
 # ================== FUNÇÕES ADICIONAIS ==================
 
 def validar_texto_para_tts(texto: str) -> tuple[bool, List[str]]:
-    """
-    Valida o texto para garantir que está adequado para processamento TTS
-    
-    Args:
-        texto: Texto a ser validado
-        
-    Returns:
-        Tupla contendo (é_válido, lista_de_erros)
-    """
+    """Valida o texto para garantir que está adequado para processamento TTS."""
     erros = []
-    
-    if not texto:
-        erros.append("Texto está vazio")
-    
-    if not isinstance(texto, str):
-        erros.append("Texto não é uma string")
-    
-    # Verificar se o texto é muito pequeno
-    if len(texto.strip()) < 10:
-        erros.append("Texto é muito curto para processamento")
-    
-    # Verificar se o texto é muito longo (poderia causar problemas de performance)
-    if len(texto) > 1000000:  # 1 milhão de caracteres
-        erros.append("Texto é muito longo (maior que 1MB), pode afetar a performance")
-    
+    if not texto or not isinstance(texto, str) or len(texto.strip()) < 10:
+        erros.append("Texto de entrada inválido, vazio ou muito curto")
     return len(erros) == 0, erros
 
 def preprocessar_texto(texto: str) -> str:
-    """
-    Função auxiliar que faz um pré-processamento básico do texto
-    
-    Args:
-        texto: Texto de entrada
-        
-    Returns:
-        Texto pré-processado
-    """
+    """Função auxiliar que faz um pré-processamento básico do texto."""
     if not texto:
-        return texto
-        
-    # Remover espaços em branco excessivos no início e final
+        return ""
     texto = texto.strip()
-    
-    # Normalizar quebras de linha
-    texto = re.sub(r'\r\n', '\n', texto)  # Windows
-    texto = re.sub(r'\r', '\n', texto)    # Mac
-    texto = re.sub(r'\n\s*\n', '\n\n', texto)  # Normalizar quebras de parágrafo múltiplas
-    
+    texto = re.sub(r'\r\n?', '\n', texto)
+    texto = re.sub(r'\n\s*\n', '\n\n', texto)
     return texto
 
 # ================== EXEMPLO DE USO ==================
 
 if __name__ == '__main__':
-    texto_de_exemplo = """
-    Esse livro é protegido pelas leis internacionais de Copyright.
-    www.portaldetonando.cjb.net
-
-    CAPÍTULO VINTE E UM.
-
-    O Sr. & a Sra. Dursley, da rua dos Alfeneiros, nº 4, orgulhavam-se de
-    dizer que eram perfeitamente normais, muito obrigado. O preço é R$ 50,50.
-    O carro andava a 80Km/h. A temperatura estava em 25°C.
-    O evento será em jan. de 2023.
-
-    "Isso é 50% verdade!", disse o Dr. João.
-    — Cuidado! — alertou a Profa. Ana.
-    O evento será na Av. Brasil, S/N.
-    """
+    # Tenta ler o arquivo de texto fornecido pelo usuário
+    try:
+        with open('Harry_Potter_e_a_Pedra_Filosofal_formatado.txt', 'r', encoding='utf-8') as f:
+            texto_de_exemplo = f.read()
+        logger.info("Arquivo 'Harry_Potter_e_a_Pedra_Filosofal_formatado.txt' lido com sucesso.")
+    except FileNotFoundError:
+        logger.error("Arquivo de exemplo não encontrado. Usando texto interno.")
+        texto_de_exemplo = """
+        Capítulo Um -. O menino que sobreviveu . O Sr. Dursley; da rua dos Alfeneiros, n. o. quatro, se orgulhava de dizer que eram normais. Eram as últimas pessoas número mundo...
+        ... uma nova três. moda idiota. O St Dursley ficou pregado número chão.
+        """
     
-    # Validar o texto antes do processamento
     valido, erros = validar_texto_para_tts(texto_de_exemplo)
     if not valido:
         print("Erros de validação:", erros)
     else:
-        # Pré-processar o texto
-        texto_de_exemplo = preprocessar_texto(texto_de_exemplo)
-        
-        # Processar o texto
         texto_processado = formatar_texto_para_tts(texto_de_exemplo)
-        print("\n--- TEXTO PROCESSADO ---\n")
-        print(texto_processado)
-
-    # Saída esperada:
-    #
-    # CAPÍTULO VINTE E UM.
-    #
-    # O Senhor e a Senhora Dursley, da rua dos Alfeneiros, número quatro, orgulhavam-se de dizer que eram perfeitamente normais, muito obrigado. O preço é cinquenta reais e cinquenta centavos. O carro andava a oitenta quilômetros por hora. A temperatura estava em vinte e cinco graus celsius.
-    # O evento será em janeiro de dois mil e vinte e três.
-    #
-    # "Isso é cinquenta por cento verdade!", disse o Doutor João.
-    #
-    # — Cuidado! — alertou a Professora Ana.
-    #
-    # O evento será na Avenida Brasil, sem número.
+        
+        # Salva o resultado em um novo arquivo
+        try:
+            with open('Harry_Potter_corrigido.txt', 'w', encoding='utf-8') as f_out:
+                f_out.write(texto_processado)
+            logger.info("Texto processado salvo em 'Harry_Potter_corrigido.txt'.")
+            print("\n--- TEXTO PROCESSADO E SALVO COM SUCESSO ---\n")
+            print("Amostra do resultado:")
+            print(texto_processado[:1000] + "...")
+        except IOError as e:
+            logger.error(f"Não foi possível salvar o arquivo: {e}")
+            print("\n--- TEXTO PROCESSADO (não foi possível salvar) ---\n")
+            print(texto_processado)
