@@ -107,11 +107,6 @@ def _expandir_abreviacoes_comuns(texto: str) -> str:
         # Outras abreviações
         r'\bN[º°o]\b': 'número',
         r'\bn[º°o]\b': 'número',
-        r'\bn. o.\b': 'número',
-        r'\bn. o. \b': 'número',
-        r'\b n. o.\b': 'número',
-        r'\b n. o. \b': 'número',
-        r'\bn.o.\b': 'número',
         r'\bKg\b': 'quilograma',
         r'\bcm\b': 'centímetro',
         r'\bmm\b': 'milímetro',
