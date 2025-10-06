@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Módulo responsável por toda a limpeza, formatação e preparação
-do texto para a conversão em áudio (TTS). Versão aprimorada
-para remover formatação Markdown (_ e **) e ajustar títulos.
+do texto para a conversão em áudio (TTS).
+Versão aprimorada com:
+- remoção de formatação Markdown (_ e **)
+- expansão de abreviações comuns (Sr., Dra., n°, etc.)
+- títulos limpos e naturais para leitura
 """
 import re
 import unicodedata
@@ -10,7 +13,7 @@ from num2words import num2words
 
 import config
 
-# ================== CONSTANTES DE LIMPEZA ==================
+# ================== CONSTANTES ==================
 
 TEXTOS_REPETIDOS_PARA_REMOVER = [
     "Esse livro é protegido pelas leis internacionais de Copyright.",
@@ -34,6 +37,7 @@ def _remover_lixo_textual(texto: str) -> str:
         texto = texto.replace(frase, "")
     return texto
 
+
 def _remover_formatacao_markdown(texto: str) -> str:
     """Remove formatações como _**texto**_ ou **texto**, _texto_ etc."""
     print("   -> Removendo formatação Markdown (_ e **)...")
@@ -41,6 +45,7 @@ def _remover_formatacao_markdown(texto: str) -> str:
     texto = re.sub(r'_(.*?)_', r'\1', texto)        # remove itálico
     texto = re.sub(r'\*([^*]+)\*', r'\1', texto)    # remove asteriscos soltos
     return texto
+
 
 def _remontar_paragrafos(texto: str) -> str:
     print("   -> Remontando parágrafos quebrados...")
@@ -50,6 +55,7 @@ def _remontar_paragrafos(texto: str) -> str:
     texto = texto.replace(placeholder, '\n\n')
     texto = re.sub(r'(\w+)-\s+', r'\1', texto)
     return texto
+
 
 def _formatar_capitulos_e_titulos(texto: str) -> str:
     print("   -> Formatando títulos de capítulos...")
@@ -67,6 +73,54 @@ def _formatar_capitulos_e_titulos(texto: str) -> str:
         re.IGNORECASE
     )
     return padrao.sub(substituir_capitulo, texto)
+
+
+def _expandir_abreviacoes_comuns(texto: str) -> str:
+    """Expande abreviações conhecidas para leitura natural no TTS."""
+    print("   -> Expandindo abreviações comuns...")
+
+    substituicoes = {
+        # Pessoas e títulos
+        r'\bSr\.': 'Senhor',
+        r'\bSra\.': 'Senhora',
+        r'\bSrta\.': 'Senhorita',
+        r'\bDr\.': 'Doutor',
+        r'\bDra\.': 'Doutora',
+        r'\bProf\.': 'Professor',
+        r'\bProfa\.': 'Professora',
+        r'\bEng\.': 'Engenheiro',
+        r'\bEnga\.': 'Engenheira',
+        r'\bArq\.': 'Arquiteto',
+        r'\bArqa\.': 'ArquitetA',
+        r'\bCap\.': 'Capitão',
+        r'\bCel\.': 'Coronel',
+        r'\bTen\.': 'Tenente',
+        r'\bMaj\.': 'Major',
+        r'\bGen\.': 'General',
+
+        # Endereços
+        r'\bAv\.': 'Avenida',
+        r'\bR\.': 'Rua',
+        r'\bRod\.': 'Rodovia',
+        r'\bPça\.': 'Praça',
+
+        # Outras abreviações
+        r'\bN[º°o]\b': 'número',
+        r'\bn[º°o]\b': 'número',
+        r'\bKg\b': 'quilograma',
+        r'\bcm\b': 'centímetro',
+        r'\bmm\b': 'milímetro',
+        r'\bml\b': 'mililitro',
+        r'\bLt\.?\b': 'litro',
+        r'\bEx\b': 'exemplo',
+        r'\bEtc\.?': 'et cetera',
+        r'\bObs\.?': 'observação',
+    }
+
+    for padrao, substituto in substituicoes.items():
+        texto = re.sub(padrao, substituto, texto, flags=re.IGNORECASE)
+    return texto
+
 
 def _expandir_numeros_e_abreviacoes(texto: str) -> str:
     print("   -> Expandindo números e abreviações...")
@@ -105,6 +159,7 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
     texto = re.sub(r'\b\d+\b', substituir_cardinal, texto)
     return texto
 
+
 def _limpeza_final(texto: str) -> str:
     print("   -> Realizando limpezas finais...")
     texto = re.sub(r'^\s*\d+\s*$', '', texto, flags=re.MULTILINE)
@@ -123,12 +178,14 @@ def _limpeza_final(texto: str) -> str:
             paragrafos.append(p)
     return '\n\n'.join(paragrafos)
 
+
 # ================== FUNÇÃO PRINCIPAL ==================
 
 def formatar_texto_para_tts(texto_bruto: str) -> str:
     """
     Executa todas as etapas de limpeza e formatação para gerar
-    texto perfeito para conversão TTS (sem símbolos como _ ou **).
+    texto perfeito para conversão TTS.
+    Remove formatações, expande abreviações e números.
     """
     print("Aplicando formatações avançadas ao texto...")
 
@@ -137,6 +194,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     texto = _remover_formatacao_markdown(texto)
     texto = _remontar_paragrafos(texto)
     texto = _formatar_capitulos_e_titulos(texto)
+    texto = _expandir_abreviacoes_comuns(texto)
     texto = _expandir_numeros_e_abreviacoes(texto)
     texto = _limpeza_final(texto)
 
