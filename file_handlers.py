@@ -102,18 +102,29 @@ def extrair_texto_de_epub(caminho_epub: str) -> str:
         livro = epub.read_epub(caminho_epub)
         partes_texto = []
         
-        # Obtém os itens na ordem correta do "spine" do EPUB
-        itens_documento = [livro.get_item_with_href(href) for href, _ in livro.spine]
-        if not itens_documento: # Fallback se o spine estiver vazio
-             itens_documento = livro.get_items_of_type(ITEM_DOCUMENT)
+        itens_documento = []
+        if livro.spine:
+            # Itera pelo 'spine' para manter a ordem, mas verifica se cada item existe
+            for href, _ in livro.spine:
+                item = livro.get_item_with_href(href)
+                if item:  # Apenas adiciona à lista se o item for encontrado
+                    itens_documento.append(item)
+        
+        # Se o spine estiver vazio ou for inválido, usa um método de fallback
+        if not itens_documento:
+             print("⚠️ 'Spine' do EPUB inválido ou vazio. Recorrendo à leitura de todos os documentos.")
+             itens_documento = list(livro.get_items_of_type(ITEM_DOCUMENT))
 
         for item in tqdm(itens_documento, desc="Processando capítulos do EPUB", unit="cap", ncols=80):
+            # A verificação de 'item' aqui garante que não teremos o erro
+            if not item:
+                continue
+
             soup = BeautifulSoup(item.get_content(), 'html.parser')
             # Remove tags irrelevantes
             for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'a']):
                 tag.decompose()
             
-            # Extrai o texto, usando \n como separador para ajudar na reconstrução de parágrafos
             texto_item = soup.get_text(separator='\n', strip=True)
             if texto_item:
                 partes_texto.append(texto_item)
@@ -137,3 +148,4 @@ def extrair_texto_de_docx(caminho_docx: str) -> str:
     except Exception as e:
         print(f"❌ Erro ao processar DOCX: {e}")
         return ""
+
