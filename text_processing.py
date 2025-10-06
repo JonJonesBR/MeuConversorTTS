@@ -1,179 +1,45 @@
 # -*- coding: utf-8 -*-
 """
-Script aprimorado de limpeza e formatação de texto para leitura TTS,
-com capacidade de extrair texto diretamente de arquivos EPUB.
-
-Este script processa textos brutos, especialmente de e-books, para gerar uma
-saída otimizada para sintetizadores de voz (Text-to-Speech). O objetivo é
-criar uma narração o mais natural e fluida possível, tratando desde a
-limpeza de artefatos de digitalização até a expansão de abreviações e
-números para uma pronúncia correta.
+Módulo de limpeza e formatação de texto para leitura TTS.
+Contém o pipeline principal para transformar texto bruto em texto limpo.
 """
 import re
 import unicodedata
 from num2words import num2words
-from typing import Dict, List, Pattern
 import logging
-from bs4 import BeautifulSoup
 
-try:
-    from ebooklib import epub, ITEM_DOCUMENT
-except ImportError:
-    print("A biblioteca 'ebooklib' não está instalada. Por favor, instale com: pip install ebooklib beautifulsoup4")
-    exit()
+# Importa as configurações centralizadas
+import config
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ================== CONFIGURAÇÕES GLOBAIS ==================
-
-# Mapeamento de números por extenso para numerais, usado na formatação de capítulos.
-CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM: Dict[str, str] = {
-    'UM': '1', 'DOIS': '2', 'TRÊS': '3', 'QUATRO': '4', 'CINCO': '5',
-    'SEIS': '6', 'SETE': '7', 'OITO': '8', 'NOVE': '9', 'DEZ': '10',
-    'ONZE': '11', 'DOZE': '12', 'TREZE': '13', 'CATORZE': '14', 'QUATORZE': '14',
-    'QUINZE': '15', 'DEZESSEIS': '16', 'DEZESSETE': '17', 'DEZOITO': '18',
-    'DEZENOVE': '19', 'VINTE': '20', 'VINTE E UM': '21', 'VINTE E DOIS': '22',
-    'VINTE E TRÊS': '23', 'VINTE E QUATRO': '24', 'VINTE E CINCO': '25',
-    'VINTE E SEIS': '26', 'VINTE E SETE': '27', 'VINTE E OITO': '28',
-    'VINTE E NOVE': '29', 'TRINTA': '30'
-}
-
-# Correções para artefatos específicos de OCR ou extração.
-CORRECOES_ESPECIFICAS: Dict[str, str] = {
-    'observaçãoervadores': 'observadores',
-    'observaçãoervando': 'observando',
-    'observaçãoervava': 'observava',
-    'gramasunnings': 'Grunnings',
-    'Sr:;': 'Sr.'
-}
-
-# Mapeamento de abreviações e siglas para sua forma extensa.
-EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
-    # --- Títulos e Pessoas ---
-    re.compile(r'\bSr\.', re.IGNORECASE): 'Senhor',
-    re.compile(r'\bSra\.', re.IGNORECASE): 'Senhora',
-    re.compile(r'\bSrta\.', re.IGNORECASE): 'Senhorita',
-    re.compile(r'\bDr\.', re.IGNORECASE): 'Doutor',
-    re.compile(r'\bDra\.', re.IGNORECASE): 'Doutora',
-    re.compile(r'\bProf\.', re.IGNORECASE): 'Professor',
-    re.compile(r'\bProfa\.', re.IGNORECASE): 'Professora',
-    re.compile(r'\bV\.Exa\.', re.IGNORECASE): 'Vossa Excelência',
-    re.compile(r'\bV\.Sa\.', re.IGNORECASE): 'Vossa Senhoria',
-    re.compile(r'\bExmo\.', re.IGNORECASE): 'Excelentíssimo',
-    re.compile(r'\bExma\.', re.IGNORECASE): 'Excelentíssima',
-    re.compile(r'\bEng\.', re.IGNORECASE): 'Engenheiro',
-    re.compile(r'\bArq\.', re.IGNORECASE): 'Arquiteto',
-    re.compile(r'\bAdv\.', re.IGNORECASE): 'Advogado',
-    re.compile(r'\bPe\.', re.IGNORECASE): 'Padre',
-    re.compile(r'\bFrei\b', re.IGNORECASE): 'Frei',
-    re.compile(r'\bIr\.', re.IGNORECASE): 'Irmã',
-    re.compile(r'\bIrma\b', re.IGNORECASE): 'Irmã',
-
-    # --- Datas e Tempo ---
-    re.compile(r'\bjan\.', re.IGNORECASE): 'janeiro',
-    re.compile(r'\bfev\.', re.IGNORECASE): 'fevereiro',
-    re.compile(r'\bmar\.', re.IGNORECASE): 'março',
-    re.compile(r'\babr\.', re.IGNORECASE): 'abril',
-    re.compile(r'\bmai\.', re.IGNORECASE): 'maio',
-    re.compile(r'\bjun\.', re.IGNORECASE): 'junho',
-    re.compile(r'\bjul\.', re.IGNORECASE): 'julho',
-    re.compile(r'\bag\.', re.IGNORECASE): 'agosto',
-    re.compile(r'\bset\.', re.IGNORECASE): 'setembro',
-    re.compile(r'\bout\.', re.IGNORECASE): 'outubro',
-    re.compile(r'\bnov\.', re.IGNORECASE): 'novembro',
-    re.compile(r'\bdez\.', re.IGNORECASE): 'dezembro',
-    re.compile(r'\bs\.sec\.', re.IGNORECASE): 'século',
-    re.compile(r'\bsec\.', re.IGNORECASE): 'século',
-
-    # --- Endereços ---
-    re.compile(r'\bAv\.', re.IGNORECASE): 'Avenida',
-    re.compile(r'\bR\.', re.IGNORECASE): 'Rua',
-    re.compile(r'\bRod\.', re.IGNORECASE): 'Rodovia',
-    re.compile(r'\bPça\.', re.IGNORECASE): 'Praça',
-    re.compile(r'\bEst\.', re.IGNORECASE): 'Estrada',
-    re.compile(r'\bS/N\b', re.IGNORECASE): 'sem número',
-    re.compile(r'\bn\.\s*o\.', re.IGNORECASE): 'número',
-    re.compile(r'\bN[º°]\b', re.IGNORECASE): 'número',
-
-    # --- Unidades e Medidas ---
-    re.compile(r'\bKg\b', re.IGNORECASE): 'quilogramas',
-    re.compile(r'\bKm\b', re.IGNORECASE): 'quilômetros',
-    re.compile(r'\bcm\b', re.IGNORECASE): 'centímetros',
-    re.compile(r'\bmm\b', re.IGNORECASE): 'milímetros',
-    re.compile(r'\bml\b', re.IGNORECASE): 'mililitros',
-    re.compile(r'\bL\b'): 'litros',
-    re.compile(r'°C\b', re.IGNORECASE): 'graus Celsius',
-    re.compile(r'\bm²\b', re.IGNORECASE): 'metros quadrados',
-    re.compile(r'\bm³\b', re.IGNORECASE): 'metros cúbicos',
-    re.compile(r'\bKm/h\b', re.IGNORECASE): 'quilômetros por hora',
-    re.compile(r'\bh\b', re.IGNORECASE): 'hora',
-    re.compile(r'\bmin\b', re.IGNORECASE): 'minuto',
-    re.compile(r'\bsg\b', re.IGNORECASE): 'segundo',
-    re.compile(r'\bmg\b', re.IGNORECASE): 'miligrama',
-    re.compile(r'\bgr\.?\b', re.IGNORECASE): 'gramas',
-
-    # --- Siglas Institucionais (Exemplos) ---
-    re.compile(r'\bONU\b'): 'Organização das Nações Unidas',
-    re.compile(r'\bOMS\b'): 'Organização Mundial da Saúde',
-    re.compile(r'\bSTF\b'): 'Supremo Tribunal Federal',
-
-    # --- Diversos ---
-    re.compile(r'\bEtc\.?', re.IGNORECASE): 'et cetera',
-    re.compile(r'\bObs\.?', re.IGNORECASE): 'observação',
-    re.compile(r'\bvs\.', re.IGNORECASE): 'versus',
-    re.compile(r'\bp\.\s*(\d+)', re.IGNORECASE): r'página \1',
-    re.compile(r'\bpágs?\.', re.IGNORECASE): 'páginas',
-    re.compile(r'\bcf\.', re.IGNORECASE): 'conforme',
-    re.compile(r'\bi\.e\.', re.IGNORECASE): 'isto é',
-    re.compile(r'\be\.g\.', re.IGNORECASE): 'por exemplo',
-}
-
-# ================== FUNÇÃO DE EXTRAÇÃO DE EPUB ==================
-
-def extrair_texto_de_epub(caminho_epub: str) -> str:
-    """
-    Extrai o conteúdo de texto de um arquivo EPUB, limpando as tags HTML.
-    """
-    try:
-        logger.info(f"Iniciando extração de texto do arquivo EPUB: {caminho_epub}")
-        livro = epub.read_epub(caminho_epub)
-        partes_texto = []
-        
-        for item in livro.get_items_of_type(ITEM_DOCUMENT):
-            soup = BeautifulSoup(item.get_content(), 'html.parser')
-            texto_item = soup.get_text(separator='\n', strip=True)
-            if texto_item:
-                partes_texto.append(texto_item)
-                
-        logger.info("Extração do EPUB concluída com sucesso.")
-        return "\n\n".join(partes_texto)
-    except Exception as e:
-        logger.error(f"Falha ao ler ou processar o arquivo EPUB: {e}")
-        return ""
 
 # ================== FUNÇÕES DE LIMPEZA E NORMALIZAÇÃO ==================
 
-def _remover_lixo_textual(texto: str) -> str:
-    """Remove cabeçalhos, rodapés e outros textos repetitivos de e-books."""
-    logger.info("Removendo lixo textual (notas de copyright, etc.)...")
-    match = re.search(r'(cap[íi]tulo\s+[\w\d]+|sum[áa]rio|pr[óo]logo|pref[áa]cio)', texto, re.IGNORECASE)
-    if match:
-        texto = texto[match.start():]
-    
-    textos_a_remover = [
-        r"www\.\s*portaldetonando\.\s*cjb\.\s*net.*",
-    ]
-    for padrao in textos_a_remover:
-        texto = re.sub(padrao, "", texto, flags=re.IGNORECASE | re.MULTILINE)
+def _remover_avisos_intrusivos(texto: str) -> str:
+    """Remove padrões de lixo textual definidos em config.py."""
+    logger.info("Removendo avisos intrusivos e lixo textual...")
+    for padrao in config.PADROES_LIXO_INTRUSIVO:
+        texto = padrao.sub("", texto)
     return texto
 
 def _corrigir_artefatos_especificos(texto: str) -> str:
-    """Corrige erros de extração de texto específicos e conhecidos."""
+    """Corrige erros de OCR/conversão com base no dicionário em config.py."""
     logger.info("Corrigindo artefatos de texto específicos...")
-    for erro, correcao in CORRECOES_ESPECIFICAS.items():
+    for erro, correcao in config.CORRECOES_ESPECIFICAS.items():
         texto = texto.replace(erro, correcao)
+    return texto
+
+def _remover_resquicios_paginacao(texto: str) -> str:
+    """Remove palavras de número de página que ficaram no meio do texto."""
+    logger.info("Removendo resquícios de paginação...")
+    # Cria um padrão regex com todos os números por extenso do dicionário de capítulos
+    numeros_por_extenso = '|'.join(config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.keys())
+    # Padrão para encontrar um número (dígito ou por extenso) no final de uma linha, seguido de ponto
+    padrao = re.compile(rf'(\b(?:{numeros_por_extenso})\b|[0-9]+)\s*\.\s*$', re.IGNORECASE | re.MULTILINE)
+    texto = padrao.sub('', texto)
     return texto
 
 def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
@@ -190,98 +56,76 @@ def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
     for padrao, sub in substituicoes.items():
         texto = re.sub(padrao, sub, texto)
     texto = re.sub(r'\s*—\s*', ' — ', texto)
+    # Remove marcações de formatação como *, _
+    texto = re.sub(r'[_*]', '', texto)
     return texto
 
 def _remontar_paragrafos(texto: str) -> str:
     """Corrige quebras de linha indevidas no meio dos parágrafos."""
     logger.info("Remontando parágrafos...")
+    # Une palavras separadas por hífen e quebra de linha
     texto = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', texto)
+    
     linhas = texto.split('\n')
     paragrafos_remontados = []
     paragrafo_atual = ""
     for linha in linhas:
-        linha = linha.strip()
-        if not linha:
+        linha_strip = linha.strip()
+        if not linha_strip:
             if paragrafo_atual:
                 paragrafos_remontados.append(paragrafo_atual)
                 paragrafo_atual = ""
         else:
-            paragrafo_atual = (paragrafo_atual + " " + linha).strip()
+            # Concatena com espaço se o parágrafo atual não terminar com pontuação final
+            if paragrafo_atual and not paragrafo_atual.endswith(('.', '!', '?', '"')):
+                 paragrafo_atual += " " + linha_strip
+            else:
+                 paragrafo_atual += linha_strip # Inicia ou continua após pontuação
     if paragrafo_atual:
         paragrafos_remontados.append(paragrafo_atual)
+        
     return "\n\n".join(paragrafos_remontados)
 
 # ================== FUNÇÕES DE EXPANSÃO PARA TTS ==================
 
 def _formatar_capitulos(texto: str) -> str:
-    """Padroniza a formatação de títulos de capítulos para uma leitura clara."""
+    """Padroniza a formatação de títulos de capítulos."""
     logger.info("Formatando títulos de capítulos...")
 
     def substituir_capitulo(match: re.Match) -> str:
-        prefixo = match.group(1).strip()
-        numero_str = match.group(2).strip().upper()
-        titulo_opcional = match.group(3)
+        prefixo = "CAPÍTULO" # Padrão
+        numero_str = match.group(1).strip().upper()
+        titulo_opcional = match.group(2)
         
         titulo = titulo_opcional.strip().rstrip(' .') if titulo_opcional else ""
-        numero_final = CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero_str, numero_str)
+        numero_final = config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero_str, numero_str)
 
         if titulo:
-            return f"\n\n{prefixo.upper()} {numero_final}. {titulo}.\n\n"
-        return f"\n\n{prefixo.upper()} {numero_final}.\n\n"
+            return f"\n\n{prefixo} {numero_final}. {titulo}.\n\n"
+        return f"\n\n{prefixo} {numero_final}.\n\n"
 
     padrao = re.compile(
-        r'^\s*(cap[íi]tulo)\s+([\d\w\s]+)\s*[-–—.]*\s*(?:\n\s*\n\s*(.*?)\s*\.?)?',
+        r'^\s*(?:cap[íi]tulo)\s+([\d\w\s]+)\s*[-–—.]*\s*(?:\n\s*(.*?)\s*\.?)?',
         re.IGNORECASE | re.MULTILINE
     )
     return padrao.sub(substituir_capitulo, texto)
 
 def _expandir_abreviacoes(texto: str) -> str:
-    """Expande abreviações e siglas para uma leitura natural."""
+    """Expande abreviações para uma leitura natural."""
     logger.info("Expandindo abreviações...")
-    for padrao, substituicao in EXPANSOES_TEXTUAIS.items():
+    for padrao, substituicao in config.EXPANSOES_TEXTUAIS.items():
         texto = padrao.sub(substituicao, texto)
     return texto
 
 def _expandir_numeros(texto: str) -> str:
-    """Converte números em texto por extenso, tratando casos especiais."""
+    """Converte números em texto por extenso."""
     logger.info("Expandindo números...")
 
-    def ordinal(match: re.Match) -> str:
-        try:
-            n = int(match.group(1))
-            sufixo = match.group(2).lower()
-            if sufixo in ('o', 'º'):
-                return num2words(n, lang='pt_BR', to='ordinal')
-            elif sufixo in ('a', 'ª'):
-                ordinal_masc = num2words(n, lang='pt_BR', to='ordinal')
-                return ordinal_masc[:-1] + 'a' if ordinal_masc.endswith('o') else ordinal_masc
-        except (ValueError, IndexError):
-            return match.group(0)
-        return match.group(0)
-    texto = re.sub(r'\b(\d+)([oOaAºª])\b', ordinal, texto)
-
-    def monetario(match: re.Match) -> str:
-        try:
-            valor_str = match.group(1).replace('.', '').replace(',', '.')
-            reais_str, centavos_str = (valor_str.split('.') + ['0'])[:2]
-            reais = int(reais_str)
-            centavos_str = centavos_str.ljust(2, '0')[:2]
-            centavos = int(centavos_str)
-            
-            str_reais = num2words(reais, lang='pt_BR') + (' real' if reais == 1 else ' reais')
-            if centavos > 0:
-                str_centavos = num2words(centavos, lang='pt_BR') + (' centavo' if centavos == 1 else ' centavos')
-                return f"{str_reais} e {str_centavos}"
-            return str_reais
-        except (ValueError, IndexError):
-            return match.group(0)
-    texto = re.sub(r'R\$\s*([\d.,]+)', monetario, texto)
-    
     def cardinal(match: re.Match) -> str:
         num_str = match.group(0)
         try:
             num_int = int(num_str)
-            if 1900 <= num_int <= 2100 or len(num_str) > 6:
+            if 1900 <= num_int <= 2100 or len(num_str) > 4:
                 return num_str
             return num2words(num_int, lang='pt_BR')
         except ValueError:
@@ -290,102 +134,41 @@ def _expandir_numeros(texto: str) -> str:
     return texto
 
 def _limpeza_final(texto: str) -> str:
-    """Aplica ajustes finais de espaçamento e pontuação para fluidez."""
-    logger.info("Realizando limpeza final e ajustes de ritmo...")
-    if not texto:
-        return texto
-        
-    texto = re.sub(r'([.!?"])\s*([—-])', r'\1\n\n\2', texto)
+    """Aplica ajustes finais de espaçamento e pontuação."""
+    logger.info("Realizando limpeza final...")
+    # Remove espaço antes de pontuação
     texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
+    # Garante espaço depois de pontuação
     texto = re.sub(r'([,.!?;:])(?=\w)', r'\1 ', texto)
+    # Remove espaços duplos
     texto = re.sub(r' {2,}', ' ', texto)
+    # Normaliza quebras de linha
     texto = re.sub(r'\n{3,}', '\n\n', texto)
-
-    paragrafos = texto.split('\n\n')
-    paragrafos_formatados = []
-    for p in paragrafos:
-        p_strip = p.strip()
-        if p_strip and not p_strip.startswith('—') and not re.search(r'[.!?"]$', p_strip):
-            p += '.'
-        paragrafos_formatados.append(p)
-
-    return '\n\n'.join(paragrafos_formatados).strip()
-
-# ================== FUNÇÕES ADICIONAIS ==================
-
-def validar_texto_para_tts(texto: str) -> tuple[bool, List[str]]:
-    """Valida o texto para garantir que está adequado para processamento TTS."""
-    erros = []
-    if not texto or not isinstance(texto, str) or len(texto.strip()) < 10:
-        erros.append("Texto de entrada inválido, vazio ou muito curto")
-    return len(erros) == 0, erros
-
-def preprocessar_texto(texto: str) -> str:
-    """Função auxiliar que faz um pré-processamento básico do texto."""
-    if not texto:
-        return ""
-    texto = texto.strip()
-    texto = re.sub(r'\r\n?', '\n', texto)
-    texto = re.sub(r'\n\s*\n', '\n\n', texto)
-    return texto
+    return texto.strip()
 
 # ================== FUNÇÃO PRINCIPAL ==================
 
-def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str:
+def formatar_texto_para_tts(texto_bruto: str) -> str:
     """
-    Executa um pipeline completo de limpeza e formatação para preparar o texto para TTS.
+    Executa o pipeline completo de limpeza e formatação para preparar o texto para TTS.
+    A ordem das funções é crucial para o resultado final.
     """
-    if log_progresso:
-        logger.info("Iniciando pipeline completo de formatação para TTS...")
+    logger.info("Iniciando pipeline completo de formatação para TTS...")
     
     if not texto_bruto or not isinstance(texto_bruto, str):
         logger.warning("Texto de entrada inválido ou vazio. Retornando string vazia.")
         return ""
 
-    try:
-        texto = preprocessar_texto(texto_bruto)
-        texto = _remover_lixo_textual(texto)
-        texto = _corrigir_artefatos_especificos(texto)
-        texto = _remontar_paragrafos(texto)
-        texto = _normalizar_caracteres_e_pontuacao(texto)
-        texto = _expandir_abreviacoes(texto)
-        texto = _expandir_numeros(texto)      
-        texto = _formatar_capitulos(texto)
-        texto = _limpeza_final(texto)
+    # Pipeline de processamento
+    texto = _remover_avisos_intrusivos(texto_bruto)
+    texto = _remover_resquicios_paginacao(texto)
+    texto = _corrigir_artefatos_especificos(texto)
+    texto = _normalizar_caracteres_e_pontuacao(texto)
+    texto = _remontar_paragrafos(texto)
+    texto = _expandir_abreviacoes(texto)
+    texto = _expandir_numeros(texto)      
+    texto = _formatar_capitulos(texto)
+    texto = _limpeza_final(texto)
 
-        if log_progresso:
-            logger.info("Processamento para TTS concluído.")
-        return texto
-    except Exception as e:
-        logger.error(f"Erro no pipeline de formatação: {e}")
-        return texto_bruto
-
-# ================== EXEMPLO DE USO ==================
-
-if __name__ == '__main__':
-    ARQUIVO_EPUB_ENTRADA = 'Harry Potter e a Pedra Filosofal.epub'
-    ARQUIVO_TXT_SAIDA = 'Harry_Potter_corrigido.txt'
-
-    try:
-        # 1. Extrair o texto do EPUB
-        texto_extraido = extrair_texto_de_epub(ARQUIVO_EPUB_ENTRADA)
-        
-        if texto_extraido:
-            # 2. Formatar o texto extraído para TTS
-            texto_processado = formatar_texto_para_tts(texto_extraido)
-            
-            # 3. Salvar o resultado em um novo arquivo
-            try:
-                with open(ARQUIVO_TXT_SAIDA, 'w', encoding='utf-8') as f_out:
-                    f_out.write(texto_processado)
-                logger.info(f"Texto processado salvo em '{ARQUIVO_TXT_SAIDA}'.")
-                print("\n--- PROCESSAMENTO CONCLUÍDO COM SUCESSO ---\n")
-                print(f"O arquivo '{ARQUIVO_TXT_SAIDA}' foi gerado.")
-            except IOError as e:
-                logger.error(f"Não foi possível salvar o arquivo de saída: {e}")
-        else:
-            logger.error("A extração do texto do EPUB falhou. O arquivo de saída não foi gerado.")
-
-    except FileNotFoundError:
-        logger.error(f"Arquivo de entrada '{ARQUIVO_EPUB_ENTRADA}' não encontrado.")
-        print(f"ERRO: Verifique se o arquivo '{ARQUIVO_EPUB_ENTRADA}' está na mesma pasta que o script.")
+    logger.info("Processamento para TTS concluído.")
+    return texto
