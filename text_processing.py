@@ -11,7 +11,7 @@ números para uma pronúncia correta.
 import re
 import unicodedata
 from num2words import num2words
-from typing import Dict, List, Pattern, Optional
+from typing import Dict, List, Pattern
 import logging
 
 # Configuração de logging
@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 # ================== CONFIGURAÇÕES GLOBAIS ==================
 
 # Mapeamento de números por extenso para numerais, usado na formatação de capítulos.
-# Flexibilizado para aceitar variações (ex: "CATORZE" e "QUATORZE").
 CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM: Dict[str, str] = {
     'UM': '1', 'DOIS': '2', 'TRÊS': '3', 'QUATRO': '4', 'CINCO': '5',
     'SEIS': '6', 'SETE': '7', 'OITO': '8', 'NOVE': '9', 'DEZ': '10',
@@ -43,8 +42,6 @@ CORRECOES_ESPECIFICAS: Dict[str, str] = {
 }
 
 # Mapeamento de abreviações e siglas para sua forma extensa.
-# Organizado por categorias para melhor manutenção.
-# A chave é uma expressão regular para garantir a substituição correta.
 EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     # --- Títulos e Pessoas ---
     re.compile(r'\bSr\.', re.IGNORECASE): 'Senhor',
@@ -81,7 +78,6 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bdez\.', re.IGNORECASE): 'dezembro',
     re.compile(r'\bs\.sec\.', re.IGNORECASE): 'século',
     re.compile(r'\bsec\.', re.IGNORECASE): 'século',
-    re.compile(r'\bano\s+sec\.', re.IGNORECASE): 'ano século',
 
     # --- Endereços ---
     re.compile(r'\bAv\.', re.IGNORECASE): 'Avenida',
@@ -90,16 +86,16 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bPça\.', re.IGNORECASE): 'Praça',
     re.compile(r'\bEst\.', re.IGNORECASE): 'Estrada',
     re.compile(r'\bS/N\b', re.IGNORECASE): 'sem número',
-    re.compile(r'\bn\.\s*o\.', re.IGNORECASE): 'número', # AJUSTE: Captura "n. o."
-    re.compile(r'\bN[º°]\b', re.IGNORECASE): 'número', # AJUSTE: Não captura mais a palavra "no"
+    re.compile(r'\bn\.\s*o\.', re.IGNORECASE): 'número',
+    re.compile(r'\bN[º°]\b', re.IGNORECASE): 'número',
 
     # --- Unidades e Medidas ---
-    re.compile(r'\bKg\b', re.IGNORECASE): 'quilogramas', # Plural soa mais natural
+    re.compile(r'\bKg\b', re.IGNORECASE): 'quilogramas',
     re.compile(r'\bKm\b', re.IGNORECASE): 'quilômetros',
     re.compile(r'\bcm\b', re.IGNORECASE): 'centímetros',
     re.compile(r'\bmm\b', re.IGNORECASE): 'milímetros',
     re.compile(r'\bml\b', re.IGNORECASE): 'mililitros',
-    re.compile(r'\bL\b'): 'litros', # "L" maiúsculo para evitar substituir "l" em palavras
+    re.compile(r'\bL\b'): 'litros',
     re.compile(r'°C\b', re.IGNORECASE): 'graus Celsius',
     re.compile(r'\bm²\b', re.IGNORECASE): 'metros quadrados',
     re.compile(r'\bm³\b', re.IGNORECASE): 'metros cúbicos',
@@ -108,7 +104,7 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bmin\b', re.IGNORECASE): 'minuto',
     re.compile(r'\bsg\b', re.IGNORECASE): 'segundo',
     re.compile(r'\bmg\b', re.IGNORECASE): 'miligrama',
-    re.compile(r'\bgr\.?\b', re.IGNORECASE): 'gramas', # AJUSTE: Não captura "gr" no início de palavras como "grande"
+    re.compile(r'\bgr\.?\b', re.IGNORECASE): 'gramas',
 
     # --- Siglas Institucionais (Exemplos) ---
     re.compile(r'\bONU\b'): 'Organização das Nações Unidas',
@@ -119,7 +115,7 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bEtc\.?', re.IGNORECASE): 'et cetera',
     re.compile(r'\bObs\.?', re.IGNORECASE): 'observação',
     re.compile(r'\bvs\.', re.IGNORECASE): 'versus',
-    re.compile(r'\bp\.\s*(\d+)', re.IGNORECASE): r'página \1', # Ex: p. 12
+    re.compile(r'\bp\.\s*(\d+)', re.IGNORECASE): r'página \1',
     re.compile(r'\bpágs?\.', re.IGNORECASE): 'páginas',
     re.compile(r'\bcf\.', re.IGNORECASE): 'conforme',
     re.compile(r'\bi\.e\.', re.IGNORECASE): 'isto é',
@@ -135,12 +131,10 @@ def _remover_lixo_textual(texto: str) -> str:
         if not texto:
             return texto
             
-        # Tenta encontrar o primeiro capítulo para remover qualquer texto introdutório
         match = re.search(r'(cap[íi]tulo\s+[\w\d]+|sum[áa]rio|pr[óo]logo|pref[áa]cio)', texto, re.IGNORECASE)
         if match:
             texto = texto[match.start():]
 
-        # Remove textos repetitivos comuns
         textos_a_remover = [
             r"Esse livro é protegido.*",
             r"www\.\s*portaldetonando\.\s*cjb\.\s*net.*",
@@ -155,34 +149,33 @@ def _remover_lixo_textual(texto: str) -> str:
         logger.error(f"Erro ao remover lixo textual: {e}")
         return texto
 
-def _remover_artefatos_visuais(texto: str) -> str:
-    """Remove elementos visuais como separadores de cena e números de página."""
+def _remover_linhas_indesejadas(texto: str) -> str:
+    """Remove linhas que contêm apenas números de página ou separadores de cena."""
     try:
-        logger.info("Removendo artefatos visuais...")
+        logger.info("Removendo linhas de números de página e separadores...")
         if not texto:
             return texto
-        
-        # Remove separadores de cena (ex: "_. " em uma linha)
-        texto = re.sub(r'^\s*_\.\s*$', '', texto, flags=re.MULTILINE)
 
-        # Remove números de página que aparecem no meio do texto, geralmente no final de uma linha
-        # Cria uma lista de números por extenso para busca
-        numeros_extenso = list(CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.keys())
-        numeros_extenso.extend(['cem', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos']) # Adicionar mais se necessário
-        padrao_palavras = r'\b(' + '|'.join(numeros_extenso) + r')\b\s*\.'
-        
-        # Remove números (dígitos ou por extenso) que quebram parágrafos
-        texto = re.sub(rf'({padrao_palavras})\s*\n', '\n', texto, flags=re.IGNORECASE)
-        texto = re.sub(r'(\b\d+\b\s*\.)\s*\n', '\n', texto, flags=re.IGNORECASE)
+        linhas = texto.split('\n')
+        linhas_filtradas = []
 
-        # Remove os mesmos padrões quando seguidos por um espaço e uma letra maiúscula (início de frase)
-        texto = re.sub(rf'\s+{padrao_palavras}\s+(?=[A-Z])', ' ', texto, flags=re.IGNORECASE)
-        texto = re.sub(r'\s+\b\d+\b\s*\.\s+(?=[A-Z])', ' ', texto, flags=re.IGNORECASE)
+        numeros_extenso_lista = list(CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.keys())
+        numeros_extenso_lista.extend(['cem', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos'])
+        padrao_numero_palavra = '|'.join(numeros_extenso_lista)
 
-        return texto
+        padrao_pagina = re.compile(rf'^\s*(\d+|{padrao_numero_palavra})\s*\.?\s*$', re.IGNORECASE)
+        padrao_separador = re.compile(r'^\s*_\.\s*$')
+
+        for linha in linhas:
+            linha_strip = linha.strip()
+            if not padrao_pagina.match(linha_strip) and not padrao_separador.match(linha_strip):
+                linhas_filtradas.append(linha)
+
+        return '\n'.join(linhas_filtradas)
     except Exception as e:
-        logger.error(f"Erro ao remover artefatos visuais: {e}")
+        logger.error(f"Erro ao remover linhas indesejadas: {e}")
         return texto
+
 
 def _corrigir_artefatos_especificos(texto: str) -> str:
     """Corrige erros de extração de texto específicos e conhecidos."""
@@ -213,8 +206,7 @@ def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
             "[‘’]": "'",
             '[–—―‐‑]': '—',
             '…': '...',
-            '; ': ', ', # AJUSTE: Converte ponto e vírgula em vírgula
-            ';': ',',   # AJUSTE: Converte ponto e vírgula em vírgula
+            ';': ',',   # AJUSTE: Converte todos os ponto e vírgulas em vírgulas
         }
         for padrao, sub in substituicoes.items():
             texto = re.sub(padrao, sub, texto)
@@ -241,7 +233,7 @@ def _substituir_simbolos_por_extenso(texto: str) -> str:
             '&': ' e ',
             '@': ' arroba ',
             '#': ' cerquilha ',
-            '%': ' por cento', # Removido espaço inicial para casos como "50%"
+            '%': ' por cento',
             '/': ' barra ',
             '\\': ' ',
             '+': ' mais ',
@@ -264,8 +256,6 @@ def _remontar_paragrafos(texto: str) -> str:
         if not texto:
             return texto
             
-        # Une sentenças quebradas por uma nova linha
-        texto = re.sub(r'([.!?])\n(\w)', r'\1 \2', texto)
         texto = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', texto)
 
         linhas = texto.split('\n')
@@ -283,9 +273,11 @@ def _remontar_paragrafos(texto: str) -> str:
                 else:
                     paragrafo_atual = linha
         if paragrafo_atual:
-            paragrafos_remontados.append(paragrafo_atual)
+            paragrafo_atual = paragrafo_atual.strip()
+            if paragrafo_atual:
+                paragrafos_remontados.append(paragrafo_atual)
 
-        return "\n\n".join(p.strip() for p in paragrafos_remontados)
+        return "\n\n".join(paragrafos_remontados)
     except Exception as e:
         logger.error(f"Erro ao remontar parágrafos: {e}")
         return texto
@@ -312,7 +304,6 @@ def _formatar_capitulos(texto: str) -> str:
             else:
                 return f"\n\n{prefixo.upper()} {numero_final}.\n\n"
 
-        # AJUSTE: Padrão mais robusto para capturar títulos de capítulo com ou sem título de texto
         padrao = re.compile(
             r'^\s*(cap[íi]tulo)\s+([\d\w\s]+)\s*[-–—.]*\s*(?:\n\s*\n\s*(.*?)\s*\.?)?',
             re.IGNORECASE | re.MULTILINE
@@ -401,7 +392,7 @@ def _limpeza_final(texto: str) -> str:
             
         texto = re.sub(r'([.!?"])\s*([—-])', r'\1\n\n\2', texto)
         texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
-        texto = re.sub(r'([,.!?;:])(?=\w)', r'\1 ', texto) # AJUSTE: Garante espaço após pontuação
+        texto = re.sub(r'([,.!?;:])(?=\w)', r'\1 ', texto)
         texto = re.sub(r' {2,}', ' ', texto)
         texto = re.sub(r'\n{3,}', '\n\n', texto)
 
@@ -437,7 +428,7 @@ def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str
         texto = preprocessar_texto(texto_bruto)
         texto = _remover_lixo_textual(texto)
         texto = _corrigir_artefatos_especificos(texto)
-        texto = _remover_artefatos_visuais(texto)
+        texto = _remover_linhas_indesejadas(texto) # NOVO: Remove linhas de página antes de remontar
         texto = _remontar_paragrafos(texto)
         texto = _normalizar_caracteres_e_pontuacao(texto)
         texto = _substituir_simbolos_por_extenso(texto)  
@@ -504,3 +495,4 @@ if __name__ == '__main__':
             logger.error(f"Não foi possível salvar o arquivo: {e}")
             print("\n--- TEXTO PROCESSADO (não foi possível salvar) ---\n")
             print(texto_processado)
+
