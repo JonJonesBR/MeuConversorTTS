@@ -8,3 +8,4 @@ aioconsole>=0.6.0
 tqdm>=4.66.1
 html2text>=2020.1.16
 beautifulsoup4>=4.12.2
+EbookLib>=0.18
