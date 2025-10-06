@@ -46,32 +46,15 @@ def _remontar_paragrafos(texto: str) -> str:
     """A função mais crucial: junta linhas quebradas incorretamente."""
     print("   -> Remontando parágrafos quebrados...")
     
-    linhas = texto.split('\n')
-    paragrafos_remontados = []
-    paragrafo_atual = ""
-
-    for linha in linhas:
-        linha_strip = linha.strip()
-        if not linha_strip:
-            if paragrafo_atual:
-                paragrafos_remontados.append(paragrafo_atual)
-                paragrafo_atual = ""
-        else:
-            # Se a linha anterior termina com pontuação final, é um novo parágrafo.
-            # Se a linha atual começa com letra maiúscula (e não é logo após um ponto final),
-            # também pode indicar um novo parágrafo (lógica mais complexa).
-            # Por simplicidade aqui, vamos juntar a menos que haja uma quebra de linha dupla (já tratada).
-            # A lógica principal será tratar as quebras simples.
-            if paragrafo_atual:
-                paragrafo_atual += " " + linha_strip
-            else:
-                paragrafo_atual = linha_strip
-
-    if paragrafo_atual:
-        paragrafos_remontados.append(paragrafo_atual)
-
-    # Reagrupa o texto, corrigindo quebras de linha erradas
-    texto_corrigido = "\n\n".join(paragrafos_remontados)
+    # Usa um placeholder para quebras de parágrafo genuínas (linhas em branco)
+    placeholder_paragrafo = "|||NEW_PARAGRAPH|||"
+    texto_com_placeholders = re.sub(r'\n\s*\n', placeholder_paragrafo, texto)
+    
+    # Remove todas as quebras de linha restantes, que estão no meio das frases
+    texto_sem_quebras = texto_com_placeholders.replace('\n', ' ')
+    
+    # Restaura as quebras de parágrafo
+    texto_corrigido = texto_sem_quebras.replace(placeholder_paragrafo, '\n\n')
     
     # Junta palavras que foram separadas por hífen no final da linha
     texto_corrigido = re.sub(r'(\w+)-\s+', r'\1', texto_corrigido)
@@ -88,13 +71,11 @@ def _formatar_capitulos_e_titulos(texto: str) -> str:
         
         numero_final = config.CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero, numero)
         
-        # Adiciona pontuação final ao título se não houver
         if not re.search(r'[.!?]$', titulo):
             titulo += "."
             
         return f"\n\nCAPÍTULO {numero_final}.\n\n{titulo}\n\n"
 
-    # Padrão para encontrar "CAPÍTULO [numero]." e o título na linha seguinte.
     padrao = re.compile(
         r'CAP[ÍI]TULO\s+([\w\s]+?)\.\s*\n\n([^\n]+)',
         re.IGNORECASE
@@ -105,15 +86,26 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
     """Converte números para texto por extenso (cardinais, ordinais, monetários)."""
     print("   -> Expandindo números e abreviações...")
 
-    # Converte números ordinais (ex: 1º, 2ª)
+    # Função interna para converter ordinais, com a correção do 'ordinal_female'
     def substituir_ordinal(match):
-        numero = int(match.group(1))
-        terminacao = match.group(2).lower()
-        if terminacao in ('o', 'º'):
-            return num2words(numero, lang='pt_BR', to='ordinal')
-        elif terminacao in ('a', 'ª'):
-            return num2words(numero, lang='pt_BR', to='ordinal_female')
-        return match.group(0)
+        try:
+            numero = int(match.group(1))
+            terminacao = match.group(2).lower()
+            
+            if terminacao in ('o', 'º'):
+                return num2words(numero, lang='pt_BR', to='ordinal')
+            elif terminacao in ('a', 'ª'):
+                # **INÍCIO DA CORREÇÃO**
+                # Pega a forma masculina e a adapta para a feminina.
+                ordinal_masc = num2words(numero, lang='pt_BR', to='ordinal')
+                if ordinal_masc.endswith('o'):
+                    return ordinal_masc[:-1] + 'a'
+                return ordinal_masc  # Fallback para casos como 'terceira' que a lib pode já retornar certo
+                # **FIM DA CORREÇÃO**
+            return match.group(0)
+        except (ValueError, NotImplementedError):
+             return match.group(0) # Retorna o original se houver erro
+             
     texto = re.sub(r'\b(\d+)([oOaAºª])\b', substituir_ordinal, texto)
 
     # Converte valores monetários (ex: R$ 50,00)
@@ -125,11 +117,15 @@ def _expandir_numeros_e_abreviacoes(texto: str) -> str:
     # Converte números cardinais, ignorando anos e números muito grandes
     def substituir_cardinal(match):
         num_str = match.group(0)
-        if 1900 <= int(num_str) <= 2100:
-            return num_str  # Mantém anos
-        if len(num_str) > 6:
-            return num_str # Mantém números grandes (possivelmente IDs)
-        return num2words(int(num_str), lang='pt_BR')
+        try:
+            num_int = int(num_str)
+            if 1900 <= num_int <= 2100:
+                return num_str
+            if len(num_str) > 6:
+                return num_str
+            return num2words(num_int, lang='pt_BR')
+        except ValueError:
+            return num_str
     texto = re.sub(r'\b\d+\b', substituir_cardinal, texto)
 
     return texto
