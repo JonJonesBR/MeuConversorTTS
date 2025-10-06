@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+from typing import Dict, Pattern
 
 # ================== CONFIGURAÇÕES GLOBAIS DE TTS E VOZES ==================
 VOZES_PT_BR = [
@@ -118,4 +120,5 @@ CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM: Dict[str, str] = {
     'ONZE': '11', 'DOZE': '12', 'TREZE': '13', 'CATORZE': '14', 'QUINZE': '15',
     'DEZESSEIS': '16', 'DEZESSETE': '17', 'DEZOITO': '18', 'DEZENOVE': '19', 'VINTE': '20'
 }
+
 
