@@ -154,7 +154,7 @@ EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
     re.compile(r'\bFies\b'): 'Fundo de Financiamento Estudantil',
     re.compile(r'\bENEM\b'): 'Exame Nacional do Ensino Médio',
     re.compile(r'\bINEP\b'): 'Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira',
-    re.compile(r'\bANP\b'): 'Agência Nacional do Petróleo, Gás Natural e Biocombustáveis',
+    re.compile(r'\bANP\b'): 'Agência Nacional do Petróleo, Gás Natural e Biocombustíveis',
     re.compile(r'\bANAC\b'): 'Agência Nacional de Aviação Civil',
     re.compile(r'\bANS\b'): 'Agência Nacional de Saúde Suplementar',
     re.compile(r'\bANVISA\b'): 'Agência Nacional de Vigilância Sanitária',
@@ -355,17 +355,26 @@ def _substituir_simbolos_por_extenso(texto: str) -> str:
         if not texto:
             return texto
             
+        # Primeiro, remover formatação markdown e outros símbolos de formatação
+        # Substituir **texto** por texto (deixar espaços para não juntar palavras)
+        texto = re.sub(r'\*\*(.*?)\*\*', r' \1 ', texto)
+        # Substituir *texto* por texto (deixar espaços para não juntar palavras)
+        texto = re.sub(r'\*(.*?)\*', r' \1 ', texto)
+        # Substituir __texto__ por texto (deixar espaços para não juntar palavras)
+        texto = re.sub(r'__(.*?)__', r' \1 ', texto)
+        # Substituir _texto_ por texto (deixar espaços para não juntar palavras)
+        texto = re.sub(r'_(.*?)_', r' \1 ', texto)
+        
         # Mapeamento de símbolos para sua forma por extenso.
         # As chaves são strings literais, não regex.
+        # Importante: Excluir o símbolo $ pois R$ é tratado separadamente em _expandir_numeros
         substituicoes = {
             '&': ' e ',
             '@': ' arroba ',
             '#': ' cerquilha ',  # Melhor que deixar em branco
-            '$': ' dólares ', # R$ é tratado em _expandir_numeros
             '%': ' por cento ', # Melhor tratamento aqui
             '/': ' barra ', # 'ou' pode causar confusão em algumas situações
             '\\': ' ', # Barra invertida literal
-            '_': ' ', # Sublinhado é melhor como espaço
             '+': ' mais ',
             '=': ' igual a ',
             '<': ' menor que ',
@@ -608,10 +617,12 @@ def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str
         texto = _remover_lixo_textual(texto_bruto)
         texto = _normalizar_caracteres_e_pontuacao(texto)
         texto = _remontar_paragrafos(texto)
+        # Primeiro, remover símbolos de formatação markdown, mas manter símbolos monetários intactos
+        texto = _substituir_simbolos_por_extenso(texto)  
         texto = _expandir_abreviacoes(texto)  # Expandir abreviações antes de números
-        texto = _expandir_numeros(texto)      # Processar números, incluindo moedas, antes de substituição de símbolos
-        texto = _substituir_simbolos_por_extenso(texto)  # Substituir símbolos por extenso por último (depois de moedas serem processadas)
-        texto = _formatar_capitulos(texto)    # Formatar capítulos por último para evitar que expansão de números afete números de capítulo
+        # Processar números e moedas antes de qualquer outra substituição de símbolos
+        texto = _expandir_numeros(texto)      
+        texto = _formatar_capitulos(texto)    # Formatar capítulos após outras expansões
         texto = _limpeza_final(texto)
 
         if log_progresso:
