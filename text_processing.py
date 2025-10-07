@@ -1,391 +1,238 @@
 # -*- coding: utf-8 -*-
 """
-Script aprimorado de limpeza e formatação de texto para leitura TTS,
-com capacidade de extrair texto diretamente de arquivos EPUB.
+Processador de texto completo para TTS.
 
-Este script processa textos brutos, especialmente de e-books, para gerar uma
-saída otimizada para sintetizadores de voz (Text-to-Speech). O objetivo é
-criar uma narração o mais natural e fluida possível, tratando desde a
-limpeza de artefatos de digitalização até a expansão de abreviações e
-números para uma pronúncia correta.
+Este script combina a extração de texto de múltiplos formatos de arquivo
+(PDF, DOCX, EPUB, TXT) com um pipeline avançado de limpeza e formatação,
+otimizando o conteúdo para sintetizadores de voz (Text-to-Speech).
 """
+import os
+import argparse
 import re
-import unicodedata
-from num2words import num2words
-from typing import Dict, List, Pattern
 import logging
-from bs4 import BeautifulSoup
+import unicodedata
 
+# Tente importar as bibliotecas necessárias e forneça instruções claras se faltarem.
 try:
+    import fitz  # PyMuPDF
+    import docx
+    from bs4 import BeautifulSoup
     from ebooklib import epub, ITEM_DOCUMENT
-except ImportError:
-    print("A biblioteca 'ebooklib' não está instalada. Por favor, instale com: pip install ebooklib beautifulsoup4")
+    from num2words import num2words
+except ImportError as e:
+    print(f"Erro de importação: {e}")
+    print("Uma ou mais bibliotecas necessárias não estão instaladas.")
+    print("Por favor, instale todas com o comando: pip install PyMuPDF python-docx ebooklib BeautifulSoup4 num2words")
     exit()
 
 # Configuração de logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-# ================== CONFIGURAÇÕES GLOBAIS ==================
-
-# Mapeamento de números por extenso para numerais, usado na formatação de capítulos.
-CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM: Dict[str, str] = {
-    'UM': '1', 'DOIS': '2', 'TRÊS': '3', 'QUATRO': '4', 'CINCO': '5',
-    'SEIS': '6', 'SETE': '7', 'OITO': '8', 'NOVE': '9', 'DEZ': '10',
-    'ONZE': '11', 'DOZE': '12', 'TREZE': '13', 'CATORZE': '14', 'QUATORZE': '14',
-    'QUINZE': '15', 'DEZESSEIS': '16', 'DEZESSETE': '17', 'DEZOITO': '18',
-    'DEZENOVE': '19', 'VINTE': '20', 'VINTE E UM': '21', 'VINTE E DOIS': '22',
-    'VINTE E TRÊS': '23', 'VINTE E QUATRO': '24', 'VINTE E CINCO': '25',
-    'VINTE E SEIS': '26', 'VINTE E SETE': '27', 'VINTE E OITO': '28',
-    'VINTE E NOVE': '29', 'TRINTA': '30'
-}
-
-# Correções para artefatos específicos de OCR ou extração.
-CORRECOES_ESPECIFICAS: Dict[str, str] = {
-    'observaçãoervadores': 'observadores',
-    'observaçãoervando': 'observando',
-    'observaçãoervava': 'observava',
-    'gramasunnings': 'Grunnings',
-    'Sr:;': 'Sr.'
-}
+# ================== CONFIGURAÇÕES DE FORMATAÇÃO ==================
 
 # Mapeamento de abreviações e siglas para sua forma extensa.
-EXPANSOES_TEXTUAIS: Dict[Pattern, str] = {
-    # --- Títulos e Pessoas ---
+EXPANSOES_TEXTUAIS = {
     re.compile(r'\bSr\.', re.IGNORECASE): 'Senhor',
     re.compile(r'\bSra\.', re.IGNORECASE): 'Senhora',
-    re.compile(r'\bSrta\.', re.IGNORECASE): 'Senhorita',
     re.compile(r'\bDr\.', re.IGNORECASE): 'Doutor',
-    re.compile(r'\bDra\.', re.IGNORECASE): 'Doutora',
-    re.compile(r'\bProf\.', re.IGNORECASE): 'Professor',
-    re.compile(r'\bProfa\.', re.IGNORECASE): 'Professora',
-    re.compile(r'\bV\.Exa\.', re.IGNORECASE): 'Vossa Excelência',
-    re.compile(r'\bV\.Sa\.', re.IGNORECASE): 'Vossa Senhoria',
-    re.compile(r'\bExmo\.', re.IGNORECASE): 'Excelentíssimo',
-    re.compile(r'\bExma\.', re.IGNORECASE): 'Excelentíssima',
-    re.compile(r'\bEng\.', re.IGNORECASE): 'Engenheiro',
-    re.compile(r'\bArq\.', re.IGNORECASE): 'Arquiteto',
-    re.compile(r'\bAdv\.', re.IGNORECASE): 'Advogado',
-    re.compile(r'\bPe\.', re.IGNORECASE): 'Padre',
-    re.compile(r'\bFrei\b', re.IGNORECASE): 'Frei',
-    re.compile(r'\bIr\.', re.IGNORECASE): 'Irmã',
-    re.compile(r'\bIrma\b', re.IGNORECASE): 'Irmã',
-
-    # --- Datas e Tempo ---
-    re.compile(r'\bjan\.', re.IGNORECASE): 'janeiro',
-    re.compile(r'\bfev\.', re.IGNORECASE): 'fevereiro',
-    re.compile(r'\bmar\.', re.IGNORECASE): 'março',
-    re.compile(r'\babr\.', re.IGNORECASE): 'abril',
-    re.compile(r'\bmai\.', re.IGNORECASE): 'maio',
-    re.compile(r'\bjun\.', re.IGNORECASE): 'junho',
-    re.compile(r'\bjul\.', re.IGNORECASE): 'julho',
-    re.compile(r'\bag\.', re.IGNORECASE): 'agosto',
-    re.compile(r'\bset\.', re.IGNORECASE): 'setembro',
-    re.compile(r'\bout\.', re.IGNORECASE): 'outubro',
-    re.compile(r'\bnov\.', re.IGNORECASE): 'novembro',
-    re.compile(r'\bdez\.', re.IGNORECASE): 'dezembro',
-    re.compile(r'\bs\.sec\.', re.IGNORECASE): 'século',
-    re.compile(r'\bsec\.', re.IGNORECASE): 'século',
-
-    # --- Endereços ---
     re.compile(r'\bAv\.', re.IGNORECASE): 'Avenida',
     re.compile(r'\bR\.', re.IGNORECASE): 'Rua',
-    re.compile(r'\bRod\.', re.IGNORECASE): 'Rodovia',
-    re.compile(r'\bPça\.', re.IGNORECASE): 'Praça',
-    re.compile(r'\bEst\.', re.IGNORECASE): 'Estrada',
-    re.compile(r'\bS/N\b', re.IGNORECASE): 'sem número',
-    re.compile(r'\bn\.\s*o\.', re.IGNORECASE): 'número',
-    re.compile(r'\bN[º°]\b', re.IGNORECASE): 'número',
-
-    # --- Unidades e Medidas ---
-    re.compile(r'\bKg\b', re.IGNORECASE): 'quilogramas',
-    re.compile(r'\bKm\b', re.IGNORECASE): 'quilômetros',
-    re.compile(r'\bcm\b', re.IGNORECASE): 'centímetros',
-    re.compile(r'\bmm\b', re.IGNORECASE): 'milímetros',
-    re.compile(r'\bml\b', re.IGNORECASE): 'mililitros',
-    re.compile(r'\bL\b'): 'litros',
-    re.compile(r'°C\b', re.IGNORECASE): 'graus Celsius',
-    re.compile(r'\bm²\b', re.IGNORECASE): 'metros quadrados',
-    re.compile(r'\bm³\b', re.IGNORECASE): 'metros cúbicos',
-    re.compile(r'\bKm/h\b', re.IGNORECASE): 'quilômetros por hora',
-    re.compile(r'\bh\b', re.IGNORECASE): 'hora',
-    re.compile(r'\bmin\b', re.IGNORECASE): 'minuto',
-    re.compile(r'\bsg\b', re.IGNORECASE): 'segundo',
-    re.compile(r'\bmg\b', re.IGNORECASE): 'miligrama',
-    re.compile(r'\bgr\.?\b', re.IGNORECASE): 'gramas',
-
-    # --- Siglas Institucionais (Exemplos) ---
-    re.compile(r'\bONU\b'): 'Organização das Nações Unidas',
-    re.compile(r'\bOMS\b'): 'Organização Mundial da Saúde',
-    re.compile(r'\bSTF\b'): 'Supremo Tribunal Federal',
-
-    # --- Diversos ---
     re.compile(r'\bEtc\.?', re.IGNORECASE): 'et cetera',
-    re.compile(r'\bObs\.?', re.IGNORECASE): 'observação',
     re.compile(r'\bvs\.', re.IGNORECASE): 'versus',
     re.compile(r'\bp\.\s*(\d+)', re.IGNORECASE): r'página \1',
-    re.compile(r'\bpágs?\.', re.IGNORECASE): 'páginas',
-    re.compile(r'\bcf\.', re.IGNORECASE): 'conforme',
-    re.compile(r'\bi\.e\.', re.IGNORECASE): 'isto é',
-    re.compile(r'\be\.g\.', re.IGNORECASE): 'por exemplo',
+    # Adicione outras expansões do script original aqui se necessário...
 }
 
-# ================== FUNÇÃO DE EXTRAÇÃO DE EPUB ==================
+# ================== FUNÇÕES DE EXTRAÇÃO DE TEXTO ==================
 
-def extrair_texto_de_epub(caminho_epub: str) -> str:
-    """
-    Extrai o conteúdo de texto de um arquivo EPUB, limpando as tags HTML.
-    """
+def extract_from_pdf(filepath: str) -> str:
+    """Extrai texto de um arquivo .pdf."""
     try:
-        logger.info(f"Iniciando extração de texto do arquivo EPUB: {caminho_epub}")
-        livro = epub.read_epub(caminho_epub)
-        partes_texto = []
-        
-        for item in livro.get_items_of_type(ITEM_DOCUMENT):
-            soup = BeautifulSoup(item.get_content(), 'html.parser')
-            texto_item = soup.get_text(separator='\n', strip=True)
-            if texto_item:
-                partes_texto.append(texto_item)
-                
-        logger.info("Extração do EPUB concluída com sucesso.")
-        return "\n\n".join(partes_texto)
+        doc = fitz.open(filepath)
+        text = "".join(page.get_text() for page in doc.pages())
+        doc.close()
+        return text
     except Exception as e:
-        logger.error(f"Falha ao ler ou processar o arquivo EPUB: {e}")
+        logging.error(f"Erro ao processar o PDF '{filepath}': {e}")
         return ""
 
-# ================== FUNÇÕES DE LIMPEZA E NORMALIZAÇÃO ==================
-
-def _remover_lixo_textual(texto: str) -> str:
-    """Remove cabeçalhos, rodapés e outros textos repetitivos de e-books."""
-    logger.info("Removendo lixo textual (notas de copyright, etc.)...")
-    match = re.search(r'(cap[íi]tulo\s+[\w\d]+|sum[áa]rio|pr[óo]logo|pref[áa]cio)', texto, re.IGNORECASE)
-    if match:
-        texto = texto[match.start():]
-    
-    textos_a_remover = [
-        r"www\.\s*portaldetonando\.\s*cjb\.\s*net.*",
-    ]
-    for padrao in textos_a_remover:
-        texto = re.sub(padrao, "", texto, flags=re.IGNORECASE | re.MULTILINE)
-    return texto
-
-def _corrigir_artefatos_especificos(texto: str) -> str:
-    """Corrige erros de extração de texto específicos e conhecidos."""
-    logger.info("Corrigindo artefatos de texto específicos...")
-    for erro, correcao in CORRECOES_ESPECIFICAS.items():
-        texto = texto.replace(erro, correcao)
-    return texto
-
-def _normalizar_caracteres_e_pontuacao(texto: str) -> str:
-    """Normaliza caracteres Unicode, aspas, travessões e pontuação."""
-    logger.info("Normalizando caracteres e pontuação...")
-    texto = unicodedata.normalize('NFKC', texto)
-    substituicoes = {
-        '[“”«»]': '"',
-        "[‘’]": "'",
-        '[–—―‐‑]': '—',
-        '…': '...',
-        ';': ',',
-    }
-    for padrao, sub in substituicoes.items():
-        texto = re.sub(padrao, sub, texto)
-    texto = re.sub(r'\s*—\s*', ' — ', texto)
-    return texto
-
-def _remontar_paragrafos(texto: str) -> str:
-    """Corrige quebras de linha indevidas no meio dos parágrafos."""
-    logger.info("Remontando parágrafos...")
-    texto = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', texto)
-    linhas = texto.split('\n')
-    paragrafos_remontados = []
-    paragrafo_atual = ""
-    for linha in linhas:
-        linha = linha.strip()
-        if not linha:
-            if paragrafo_atual:
-                paragrafos_remontados.append(paragrafo_atual)
-                paragrafo_atual = ""
-        else:
-            paragrafo_atual = (paragrafo_atual + " " + linha).strip()
-    if paragrafo_atual:
-        paragrafos_remontados.append(paragrafo_atual)
-    return "\n\n".join(paragrafos_remontados)
-
-# ================== FUNÇÕES DE EXPANSÃO PARA TTS ==================
-
-def _formatar_capitulos(texto: str) -> str:
-    """Padroniza a formatação de títulos de capítulos para uma leitura clara."""
-    logger.info("Formatando títulos de capítulos...")
-
-    def substituir_capitulo(match: re.Match) -> str:
-        prefixo = match.group(1).strip()
-        numero_str = match.group(2).strip().upper()
-        titulo_opcional = match.group(3)
-        
-        titulo = titulo_opcional.strip().rstrip(' .') if titulo_opcional else ""
-        numero_final = CONVERSAO_CAPITULOS_EXTENSO_PARA_NUM.get(numero_str, numero_str)
-
-        if titulo:
-            return f"\n\n{prefixo.upper()} {numero_final}. {titulo}.\n\n"
-        return f"\n\n{prefixo.upper()} {numero_final}.\n\n"
-
-    padrao = re.compile(
-        r'^\s*(cap[íi]tulo)\s+([\d\w\s]+)\s*[-–—.]*\s*(?:\n\s*\n\s*(.*?)\s*\.?)?',
-        re.IGNORECASE | re.MULTILINE
-    )
-    return padrao.sub(substituir_capitulo, texto)
-
-def _expandir_abreviacoes(texto: str) -> str:
-    """Expande abreviações e siglas para uma leitura natural."""
-    logger.info("Expandindo abreviações...")
-    for padrao, substituicao in EXPANSOES_TEXTUAIS.items():
-        texto = padrao.sub(substituicao, texto)
-    return texto
-
-def _expandir_numeros(texto: str) -> str:
-    """Converte números em texto por extenso, tratando casos especiais."""
-    logger.info("Expandindo números...")
-
-    def ordinal(match: re.Match) -> str:
-        try:
-            n = int(match.group(1))
-            sufixo = match.group(2).lower()
-            if sufixo in ('o', 'º'):
-                return num2words(n, lang='pt_BR', to='ordinal')
-            elif sufixo in ('a', 'ª'):
-                ordinal_masc = num2words(n, lang='pt_BR', to='ordinal')
-                return ordinal_masc[:-1] + 'a' if ordinal_masc.endswith('o') else ordinal_masc
-        except (ValueError, IndexError):
-            return match.group(0)
-        return match.group(0)
-    texto = re.sub(r'\b(\d+)([oOaAºª])\b', ordinal, texto)
-
-    def monetario(match: re.Match) -> str:
-        try:
-            valor_str = match.group(1).replace('.', '').replace(',', '.')
-            reais_str, centavos_str = (valor_str.split('.') + ['0'])[:2]
-            reais = int(reais_str)
-            centavos_str = centavos_str.ljust(2, '0')[:2]
-            centavos = int(centavos_str)
-            
-            str_reais = num2words(reais, lang='pt_BR') + (' real' if reais == 1 else ' reais')
-            if centavos > 0:
-                str_centavos = num2words(centavos, lang='pt_BR') + (' centavo' if centavos == 1 else ' centavos')
-                return f"{str_reais} e {str_centavos}"
-            return str_reais
-        except (ValueError, IndexError):
-            return match.group(0)
-    texto = re.sub(r'R\$\s*([\d.,]+)', monetario, texto)
-    
-    def cardinal(match: re.Match) -> str:
-        num_str = match.group(0)
-        try:
-            num_int = int(num_str)
-            if 1900 <= num_int <= 2100 or len(num_str) > 6:
-                return num_str
-            return num2words(num_int, lang='pt_BR')
-        except ValueError:
-            return num_str
-    texto = re.sub(r'\b\d+\b', cardinal, texto)
-    return texto
-
-def _limpeza_final(texto: str) -> str:
-    """Aplica ajustes finais de espaçamento e pontuação para fluidez."""
-    logger.info("Realizando limpeza final e ajustes de ritmo...")
-    if not texto:
-        return texto
-        
-    texto = re.sub(r'([.!?"])\s*([—-])', r'\1\n\n\2', texto)
-    texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)
-    texto = re.sub(r'([,.!?;:])(?=\w)', r'\1 ', texto)
-    texto = re.sub(r' {2,}', ' ', texto)
-    texto = re.sub(r'\n{3,}', '\n\n', texto)
-
-    paragrafos = texto.split('\n\n')
-    paragrafos_formatados = []
-    for p in paragrafos:
-        p_strip = p.strip()
-        if p_strip and not p_strip.startswith('—') and not re.search(r'[.!?"]$', p_strip):
-            p += '.'
-        paragrafos_formatados.append(p)
-
-    return '\n\n'.join(paragrafos_formatados).strip()
-
-# ================== FUNÇÕES ADICIONAIS ==================
-
-def validar_texto_para_tts(texto: str) -> tuple[bool, List[str]]:
-    """Valida o texto para garantir que está adequado para processamento TTS."""
-    erros = []
-    if not texto or not isinstance(texto, str) or len(texto.strip()) < 10:
-        erros.append("Texto de entrada inválido, vazio ou muito curto")
-    return len(erros) == 0, erros
-
-def preprocessar_texto(texto: str) -> str:
-    """Função auxiliar que faz um pré-processamento básico do texto."""
-    if not texto:
+def extract_from_docx(filepath: str) -> str:
+    """Extrai texto de um arquivo .docx."""
+    try:
+        doc = docx.Document(filepath)
+        return "\n".join(para.text for para in doc.paragraphs)
+    except Exception as e:
+        logging.error(f"Erro ao processar o DOCX '{filepath}': {e}")
         return ""
-    texto = texto.strip()
-    texto = re.sub(r'\r\n?', '\n', texto)
-    texto = re.sub(r'\n\s*\n', '\n\n', texto)
-    return texto
 
-# ================== FUNÇÃO PRINCIPAL ==================
+def extract_from_epub(filepath: str) -> str:
+    """Extrai texto de um arquivo .epub."""
+    try:
+        book = epub.read_epub(filepath)
+        content = []
+        for item in book.get_items_of_type(ITEM_DOCUMENT):
+            soup = BeautifulSoup(item.get_content(), 'html.parser')
+            content.append(soup.get_text(separator='\n', strip=True))
+        return "\n\n".join(content)
+    except Exception as e:
+        logging.error(f"Erro ao processar o EPUB '{filepath}': {e}")
+        return ""
 
-def formatar_texto_para_tts(texto_bruto: str, log_progresso: bool = True) -> str:
+def extract_from_txt(filepath: str) -> str:
+    """Extrai texto de um arquivo .txt."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        logging.error(f"Erro ao ler o arquivo TXT '{filepath}': {e}")
+        return ""
+
+# ================== PIPELINE DE LIMPEZA E FORMATAÇÃO PARA TTS ==================
+
+def formatar_texto_para_tts(texto_bruto: str) -> str:
     """
     Executa um pipeline completo de limpeza e formatação para preparar o texto para TTS.
     """
-    if log_progresso:
-        logger.info("Iniciando pipeline completo de formatação para TTS...")
-    
     if not texto_bruto or not isinstance(texto_bruto, str):
-        logger.warning("Texto de entrada inválido ou vazio. Retornando string vazia.")
+        logging.warning("Texto de entrada inválido ou vazio.")
         return ""
 
-    try:
-        texto = preprocessar_texto(texto_bruto)
-        texto = _remover_lixo_textual(texto)
-        texto = _corrigir_artefatos_especificos(texto)
-        texto = _remontar_paragrafos(texto)
-        texto = _normalizar_caracteres_e_pontuacao(texto)
-        texto = _expandir_abreviacoes(texto)
-        texto = _expandir_numeros(texto)      
-        texto = _formatar_capitulos(texto)
-        texto = _limpeza_final(texto)
+    logging.info("Iniciando pipeline de formatação para TTS...")
 
-        if log_progresso:
-            logger.info("Processamento para TTS concluído.")
-        return texto
-    except Exception as e:
-        logger.error(f"Erro no pipeline de formatação: {e}")
-        return texto_bruto
+    # 1. Remover copyright e numeração de páginas
+    texto = re.sub(r'_Distribuído gratuitamente.*?você!_', '', texto_bruto, flags=re.DOTALL)
+    texto = re.sub(r'^\s*-+\s*\d+\s*-+$', '', texto, flags=re.MULTILINE)
+    texto = re.sub(r'^[ ]*\d+[ ]*$', '', texto, flags=re.MULTILINE)
+    texto = re.sub(r'^\s*Esse livro é protegido pelas leis internacionais de Copyright\..*?Seu uso deve ser exclusivamente pessoal\.\s*$', '', texto, flags=re.MULTILINE | re.DOTALL)
 
-# ================== EXEMPLO DE USO ==================
+    # 2. Padronizar cabeçalhos de capítulo
+    # Trata diferentes formatos de cabeçalhos de capítulo
+    # Primeiro, trata o caso com traço e padrões de separação
+    texto = re.sub(r'^\s*-+\s*CAPÍTULO\s+(.+?)\s*-+\s*$', r'Capítulo \1', texto, flags=re.MULTILINE | re.IGNORECASE)
+    # Trata o caso com dois pontos ou traço (mais robusto)
+    texto = re.sub(r'^\s*CAPÍTULO\s*(\w+)\s*[-:]\s*(.+)$', r'Capítulo \1: \2', texto, flags=re.MULTILINE | re.IGNORECASE)
+    # Trata o caso mais genérico de capítulo com qualquer caractere após o número
+    # Correção: Remove traços extras antes de aplicar este padrão
+    texto = re.sub(r'^\s*CAPÍTULO\s*(\w+)\s*-\s*(.+)$', r'Capítulo \1: \2', texto, flags=re.MULTILINE | re.IGNORECASE)
+    # Trata casos especiais de formatação de títulos (como **texto**)
+    texto = re.sub(r'\*\*(.+?)\*\*', r'\1', texto)
+    # Remove caracteres de formatação extras que podem causar problemas
+    texto = re.sub(r'\s*[-*]+\s*', ' ', texto)
+    # Corrige problemas de codificação e caracteres especiais
+    texto = texto.replace('', '')  # Remove caracteres de codificação inválida
+    # Remove barras invertidas extras
+    texto = texto.replace('\\', '')
 
-if __name__ == '__main__':
-    ARQUIVO_EPUB_ENTRADA = 'Harry Potter e a Pedra Filosofal.epub'
-    ARQUIVO_TXT_SAIDA = 'Harry_Potter_corrigido.txt'
+    # 3. Normalizar quebras de linha e hifenização
+    texto = re.sub(r'-\s*\n', ' ', texto)  # Remove hífens no final da linha e substitui por espaço
+    texto = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto)  # Junta parágrafos quebrados
+    texto = re.sub(r'\n{2,}', '\n\n', texto)  # Garante parágrafos com linha dupla
 
-    try:
-        # 1. Extrair o texto do EPUB
-        texto_extraido = extrair_texto_de_epub(ARQUIVO_EPUB_ENTRADA)
-        
-        if texto_extraido:
-            # 2. Formatar o texto extraído para TTS
-            texto_processado = formatar_texto_para_tts(texto_extraido)
-            
-            # 3. Salvar o resultado em um novo arquivo
+    # 4. Normalizar caracteres e pontuação
+    texto = unicodedata.normalize('NFKC', texto)
+    texto = re.sub(r'[“”«»]', '"', texto)
+    texto = re.sub(r"[‘’]", "'", texto)
+    texto = re.sub(r'[–—―‐‑]', ' — ', texto)  # Usa travessão com espaços
+    texto = re.sub(r'…', '...', texto)
+    # Corrige ordinais antes da expansão de números para evitar conflitos
+    texto = re.sub(r'(\d)o\.', r'\1º', texto)  # Corrige ordinal masculino
+    texto = re.sub(r'(\d)a\.', r'\1ª', texto)  # Corrige ordinal feminino
+    # Correção adicional para caracteres especiais problemáticos
+    texto = texto.encode('utf-8', 'ignore').decode('utf-8')
+    # Garantir codificação correta no final
+    texto = texto.encode('latin1', 'ignore').decode('latin1')
+
+    # 5. Remover underscores
+    texto = re.sub(r'_', '', texto)
+
+    # 6. Expandir abreviações
+    for padrao, substituicao in EXPANSOES_TEXTUAIS.items():
+        texto = padrao.sub(substituicao, texto)
+
+    # 7. Expandir números (exemplo simplificado, pode ser expandido)
+    # Otimização: Criar uma única função para lidar com todos os números
+    def expandir_numeros(texto: str) -> str:
+        def expandir_cardinal(match: re.Match) -> str:
+            num_str = match.group(0)
             try:
-                with open(ARQUIVO_TXT_SAIDA, 'w', encoding='utf-8') as f_out:
-                    f_out.write(texto_processado)
-                logger.info(f"Texto processado salvo em '{ARQUIVO_TXT_SAIDA}'.")
-                print("\n--- PROCESSAMENTO CONCLUÍDO COM SUCESSO ---\n")
-                print(f"O arquivo '{ARQUIVO_TXT_SAIDA}' foi gerado.")
-            except IOError as e:
-                logger.error(f"Não foi possível salvar o arquivo de saída: {e}")
-        else:
-            logger.error("A extração do texto do EPUB falhou. O arquivo de saída não foi gerado.")
+                num_int = int(num_str)
+                # Evita converter anos ou números muito grandes
+                if 1900 <= num_int <= 2100 or len(num_str) > 6:
+                    return num_str
+                return num2words(num_int, lang='pt_BR')
+            except ValueError:
+                return num_str
+        return re.sub(r'\b\d+\b', expandir_cardinal, texto)
+    
+    texto = expandir_numeros(texto)
+            
+    # 8. Limpeza final - otimização para melhorar a qualidade do TTS
+    # Adiciona pausas após pontos e vírgulas para melhor pronunciação
+    # Melhoria: Adicionar pausas mais inteligentes para TTS
+    texto = re.sub(r'\.(\s*)([A-Z])', r'.\n\n\2', texto)  # Pausa após ponto e letra maiúscula
+    texto = re.sub(r';(\s*)([A-Z])', r';\n\n\2', texto)   # Pausa após ponto-e-vírgula e letra maiúscula
+    texto = re.sub(r',(\s*)([A-Z])', r',\n\n\2', texto)   # Pausa após vírgula e letra maiúscula
+    texto = re.sub(r'\s+([,.!?;:])', r'\1', texto)  # Remove espaço antes da pontuação
+    texto = re.sub(r' {2,}', ' ', texto)  # Remove espaços múltiplos
+    texto = texto.strip()
+    
+    # 9. Otimização adicional para TTS: Adicionar pausas entre frases
+    # Substituir múltiplos pontos por um único ponto seguido de pausa
+    texto = re.sub(r'\.{3,}', '...', texto)
+    
+    logging.info("Processamento para TTS concluído.")
+    return texto
 
-    except FileNotFoundError:
-        logger.error(f"Arquivo de entrada '{ARQUIVO_EPUB_ENTRADA}' não encontrado.")
-        print(f"ERRO: Verifique se o arquivo '{ARQUIVO_EPUB_ENTRADA}' está na mesma pasta que o script.")
+# ================== FUNÇÃO PRINCIPAL E EXECUÇÃO ==================
+
+def main():
+    """Função principal para orquestrar a extração e formatação."""
+    parser = argparse.ArgumentParser(
+        description="Extrai e formata texto de múltiplos formatos de arquivo para uso com TTS.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("input_file", help="Caminho para o arquivo de entrada (pdf, docx, epub, txt).")
+    parser.add_argument("output_file", help="Caminho para o arquivo de saída .txt.")
+    args = parser.parse_args()
+
+    input_path = args.input_file
+    
+    if not os.path.exists(input_path):
+        logging.error(f"O arquivo de entrada '{input_path}' não foi encontrado.")
+        return
+
+    _, ext = os.path.splitext(input_path.lower())
+    
+    extractors = {
+        '.pdf': extract_from_pdf,
+        '.docx': extract_from_docx,
+        '.epub': extract_from_epub,
+        '.txt': extract_from_txt
+    }
+
+    if ext not in extractors:
+        if ext == '.doc':
+            logging.error("Arquivos .doc não são suportados. Por favor, converta para .docx primeiro.")
+        else:
+            logging.error(f"Formato de arquivo '{ext}' não suportado.")
+        return
+
+    logging.info(f"Processando arquivo: {input_path}")
+    extractor_func = extractors[ext]
+    raw_text = extractor_func(input_path)
+
+    if not raw_text:
+        logging.error("Nenhum texto foi extraído. O arquivo pode estar vazio ou corrompido.")
+        return
+        
+    formatted_text = formatar_texto_para_tts(raw_text)
+
+    try:
+        with open(args.output_file, 'w', encoding='utf-8') as f:
+            f.write(formatted_text)
+        print(f"\nSucesso! Texto formatado e salvo em: {args.output_file}")
+    except IOError as e:
+        logging.error(f"Erro ao salvar o arquivo de saída: {e}")
+
+if __name__ == "__main__":
+    main()
