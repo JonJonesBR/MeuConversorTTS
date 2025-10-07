@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Processador de texto completo para TTS.
+Script aprimorado de limpeza e formatação de texto para leitura TTS.
 
 Este script combina a extração de texto de múltiplos formatos de arquivo
 (PDF, DOCX, EPUB, TXT) com um pipeline avançado de limpeza e formatação,
@@ -121,7 +121,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
     # Corrige problemas de codificação e caracteres especiais
     texto = texto.replace('', '')  # Remove caracteres de codificação inválida
     # Remove barras invertidas extras
-    texto = texto.replace('\\', '')
+    texto = texto.replace('\\', ' ')
 
     # 3. Normalizar quebras de linha e hifenização
     texto = re.sub(r'-\s*\n', ' ', texto)  # Remove hífens no final da linha e substitui por espaço
@@ -157,7 +157,7 @@ def formatar_texto_para_tts(texto_bruto: str) -> str:
             try:
                 num_int = int(num_str)
                 # Evita converter anos ou números muito grandes
-                if 1900 <= num_int <= 2100 or len(num_str) > 6:
+                if 190 <= num_int <= 2100 or len(num_str) > 6:
                     return num_str
                 return num2words(num_int, lang='pt_BR')
             except ValueError:

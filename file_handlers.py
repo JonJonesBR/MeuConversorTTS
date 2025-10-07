@@ -9,12 +9,18 @@ import unicodedata
 import zipfile
 import subprocess
 from pathlib import Path
-import shutil  # <- LINHA ADICIONADA AQUI
+import shutil
 
 import chardet
-import html2text
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+try:
+    from ebooklib import epub, ITEM_DOCUMENT
+    from docx import Document
+except ImportError:
+    print("Dependências ausentes. Por favor, instale 'ebooklib', 'beautifulsoup4' e 'python-docx'.")
+    exit()
 
 # Importa de nossos outros módulos
 import config
@@ -29,17 +35,8 @@ def detectar_encoding_arquivo(caminho_arquivo: str) -> str:
         encoding = resultado['encoding']
         if encoding and resultado['confidence'] > 0.7:
             return encoding
-        # Fallback para tentativas manuais
-        for enc_try in config.ENCODINGS_TENTATIVAS:
-            try:
-                with open(caminho_arquivo, 'r', encoding=enc_try) as f_test:
-                    f_test.read(1024)
-                return enc_try
-            except (UnicodeDecodeError, TypeError):
-                continue
         return 'utf-8' # Padrão final
-    except Exception as e:
-        print(f"⚠️ Erro ao detectar encoding: {e}. Usando 'utf-8' como padrão.")
+    except Exception:
         return 'utf-8'
 
 def ler_arquivo_texto(caminho_arquivo: str) -> str:
@@ -55,10 +52,9 @@ def ler_arquivo_texto(caminho_arquivo: str) -> str:
 def salvar_arquivo_texto(caminho_arquivo: str, conteudo: str):
     """Salva uma string em um arquivo de texto com encoding UTF-8."""
     try:
-        os.makedirs(os.path.dirname(caminho_arquivo), exist_ok=True)
+        Path(caminho_arquivo).parent.mkdir(parents=True, exist_ok=True)
         with open(caminho_arquivo, 'w', encoding='utf-8') as f:
             f.write(conteudo)
-        print(f"Arquivo salvo: {caminho_arquivo}")
     except Exception as e:
         print(f"Erro ao salvar arquivo '{caminho_arquivo}': {e}")
 
@@ -72,87 +68,71 @@ def limpar_nome_arquivo(nome: str) -> str:
 
 def converter_pdf_para_txt(caminho_pdf: str, caminho_txt: str) -> bool:
     """Converte um arquivo PDF para TXT usando a ferramenta pdftotext."""
-    sistema = system_utils.detectar_sistema()
-    pdftotext_cmd = "pdftotext.exe" if sistema['windows'] else "pdftotext"
-
-    # Tenta instalar a dependência se não for encontrada
-    if not Path(pdftotext_cmd).is_file() and not shutil.which(pdftotext_cmd):
-        if sistema['windows']:
-            if not system_utils.instalar_poppler_windows(): return False
-        elif sistema['termux']:
-            if not system_utils._instalar_dependencia_termux_auto("poppler"): return False
-
-    if not os.path.isfile(caminho_pdf):
-        print(f"❌ Arquivo PDF não encontrado: {caminho_pdf}")
-        return False
-
+    print(f"📖 Extraindo conteúdo de: {Path(caminho_pdf).name}")
     try:
-        comando = [pdftotext_cmd, "-layout", "-enc", "UTF-8", caminho_pdf, caminho_txt]
+        comando = ["pdftotext", "-layout", "-enc", "UTF-8", caminho_pdf, caminho_txt]
         subprocess.run(comando, check=True, capture_output=True)
-        print(f"PDF convertido para TXT: {caminho_txt}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Erro ao converter PDF: {e.stderr.decode(errors='ignore')}")
+        print(f"❌ Erro ao converter PDF: {e.stderr.decode(errors='ignore')}")
         return False
     except FileNotFoundError:
-        print(f"Comando '{pdftotext_cmd}' nao encontrado. A instalacao pode ter falhado.")
+        print("❌ Comando 'pdftotext' não encontrado. Verifique se o Poppler está instalado e no PATH.")
         return False
     except Exception as e:
-        print(f"Erro inesperado ao converter PDF: {e}")
+        print(f"❌ Erro inesperado ao converter PDF: {e}")
         return False
 
 def extrair_texto_de_epub(caminho_epub: str) -> str:
-    """Extrai e limpa todo o conteúdo textual de um arquivo EPUB."""
-    print(f"\n📖 Extraindo conteúdo de: {caminho_epub}")
+    """
+    Extrai o conteúdo de texto de um arquivo EPUB, limpando as tags HTML.
+    Versão robusta para lidar com EPUBs mal formatados.
+    """
+    print(f"📖 Extraindo conteúdo de: {Path(caminho_epub).name}")
     try:
-        with zipfile.ZipFile(caminho_epub, 'r') as epub_zip:
-            # Lógica para encontrar a ordem dos arquivos (spine)
-            container = epub_zip.read('META-INF/container.xml').decode('utf-8')
-            match = re.search(r'full-path="([^\"]+)"', container)
-            if match is None:
-                print("⚠️ Não foi possível encontrar o caminho do arquivo OPF no EPUB.")
-                return ""
-            opf_path = match.group(1)
-            opf_content = epub_zip.read(opf_path).decode('utf-8')
-            opf_dir = os.path.dirname(opf_path)
-            
-            spine_ids = [m.group(1) for m in re.finditer(r'<itemref\s+idref="([^\"]+)"', opf_content)]
-            manifest_files = {m.group(1): m.group(2) for m in re.finditer(r'<item\s+id="([^\"]+)"\s+href="([^\"]+)"\s+media-type="application/xhtml\+xml"', opf_content)}
-            
-            arquivos_ordenados = []
-            for item_id in spine_ids:
-                if item_id in manifest_files:
-                    path_relativo = manifest_files[item_id]
-                    path_final = os.path.normpath(os.path.join(opf_dir, path_relativo))
-                    arquivos_ordenados.append(path_final)
-            
-            # Se a leitura da spine falhar, tenta ler todos os arquivos HTML/XHTML
-            if not arquivos_ordenados:
-                print("⚠️ Falha ao ler 'spine' do EPUB. Tentando todos os arquivos de conteúdo...")
-                arquivos_ordenados = sorted([f.filename for f in epub_zip.infolist() if f.filename.lower().endswith(('.html', '.xhtml'))])
-
-            # Processamento do HTML
-            texto_completo = ""
-            h_parser = html2text.HTML2Text()
-            h_parser.ignore_links = True
-            h_parser.ignore_images = True
-            h_parser.body_width = 0
-
-            for nome_arquivo in tqdm(arquivos_ordenados, desc="Processando capítulos"):
-                html_bytes = epub_zip.read(nome_arquivo)
-                encoding = chardet.detect(html_bytes)['encoding'] or 'utf-8'
-                html_texto = html_bytes.decode(encoding, errors='replace')
-                
-                soup = BeautifulSoup(html_texto, 'html.parser')
-                # Remove tags irrelevantes para o conteúdo de áudio
-                for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside']):
-                    tag.decompose()
-                
-                content_tag = soup.find('body') or soup
-                texto_completo += h_parser.handle(str(content_tag)) + "\n\n"
+        livro = epub.read_epub(caminho_epub)
+        partes_texto = []
         
-        return texto_completo.strip()
+        # Tenta obter a ordem correta dos capítulos (spine)
+        itens_ordenados = livro.spine
+        if not itens_ordenados:
+            print("⚠️ 'Spine' do EPUB não encontrado ou vazio. Tentando ler todos os documentos...")
+            itens_ordenados = livro.get_items_of_type(ITEM_DOCUMENT)
 
+        for item_id, _ in tqdm(itens_ordenados, desc="Processando capítulos do EPUB"):
+            # Obtém o item do livro pelo ID
+            item = livro.get_item_with_id(item_id)
+            
+            # Validação crucial: verifica se o item realmente existe
+            if item is None:
+                # print(f"Aviso: Item com id '{item_id}' listado no spine mas não encontrado no manifesto. A ignorar.")
+                continue
+
+            try:
+                soup = BeautifulSoup(item.get_content(), 'html.parser')
+                
+                # Remove tags irrelevantes para o conteúdo de áudio
+                for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'a', 'img']):
+                    tag.decompose()
+
+                texto_item = soup.get_text(separator='\n', strip=True)
+                if texto_item:
+                    partes_texto.append(texto_item)
+            except Exception as e_item:
+                print(f"Aviso: Falha ao processar o item '{item_id}' do EPUB: {e_item}")
+
+        return "\n\n".join(partes_texto)
     except Exception as e:
-        print(f"❌ Erro geral ao processar EPUB: {e}")
+        print(f"❌ Erro ao processar EPUB: {e}")
         return ""
+
+def extrair_texto_de_docx(caminho_docx: str) -> str:
+    """Extrai o conteúdo de texto de um arquivo DOCX."""
+    print(f"📖 Extraindo conteúdo de: {Path(caminho_docx).name}")
+    try:
+        doc = Document(caminho_docx)
+        return "\n\n".join([para.text for para in doc.paragraphs if para.text])
+    except Exception as e:
+        print(f"❌ Erro ao processar DOCX: {e}")
+        return ""
+

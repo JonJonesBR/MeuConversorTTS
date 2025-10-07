@@ -3,8 +3,6 @@
 Módulo da Interface de Utilizador de Linha de Comando (CLI-UI).
 Contém todas as funções para interação com o utilizador, como menus,
 seleção de ficheiros e orquestração dos fluxos de trabalho.
-
-Versão combinada e aprimorada.
 """
 import os
 import asyncio
@@ -25,21 +23,6 @@ import ffmpeg_utils
 import settings_manager
 import updater
 
-# Lista de funções públicas para exportação
-__all__ = [
-     'limpar_tela',
-     'obter_opcao_numerica',
-     'obter_confirmacao',
-     'exibir_banner_e_menu',
-     'iniciar_conversao_tts',
-     'iniciar_conversao_em_lote',
-     'testar_vozes_tts',
-     'menu_melhorar_audio_video',
-     'menu_gerenciar_configuracoes',
-     'atualizar_script',
-     'exibir_ajuda'
-]
-
 # ================== FUNÇÕES GENÉRICAS DE UI ==================
 
 def limpar_tela():
@@ -58,10 +41,8 @@ async def obter_opcao_numerica(prompt: str, num_max: int, permitir_zero=False) -
                 return escolha
             else:
                 print(f"⚠️ Opção inválida. Escolha um número entre {min_val} e {num_max}.")
-        except ValueError:
-            print("⚠️ Entrada inválida. Por favor, digite um número.")
-        except asyncio.CancelledError:
-            shared_state.CANCELAR_PROCESSAMENTO = True
+        except (ValueError, asyncio.CancelledError):
+            print("⚠️ Entrada inválida ou operação cancelada.")
             return -1
 
 async def obter_confirmacao(prompt: str, default_yes=True) -> bool:
@@ -83,77 +64,46 @@ async def obter_confirmacao(prompt: str, default_yes=True) -> bool:
 def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
     """Exibe o banner do programa e um menu de opções."""
     limpar_tela()
-    
-    # Largura total do banner
     largura_banner = 46
-    
     titulo_app = "CONVERSOR TTS COMPLETO"
     subtitulo_app = "Text-to-Speech em PT-BR"
-    
-    # Centraliza os textos dinamicamente
     espacos_titulo = " " * ((largura_banner - len(titulo_app)) // 2)
     espacos_subtitulo = " " * ((largura_banner - len(subtitulo_app)) // 2)
-    
     print("╔" + "═" * largura_banner + "╗")
     print(f"║{espacos_titulo}{titulo_app}{espacos_titulo}║")
     print(f"║{espacos_subtitulo}{subtitulo_app}{espacos_subtitulo}║")
     print("╚" + "═" * largura_banner + "╝")
-    
     print(f"\n--- {titulo_menu.upper()} ---")
     num_opcoes = max([int(k) for k in opcoes_menu.keys() if k.isdigit()], default=0)
     for num, desc in opcoes_menu.items():
         print(f"{num}. {desc}")
     return obter_opcao_numerica("Opção", num_opcoes, permitir_zero=('0' in opcoes_menu))
 
+
 # ================== LÓGICA DE NAVEGAÇÃO E SELEÇÃO ==================
 
 async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=None):
     """Navegador de sistema de ficheiros interativo para selecionar um ficheiro ou pasta."""
     if extensoes_permitidas is None:
-        extensoes_permitidas = ['.txt', '.pdf', '.epub']
+        extensoes_permitidas = ['.txt', '.pdf', '.epub', '.docx']
     
     prompt_titulo = "PASTA" if selecionar_pasta else "FICHEIRO"
     prompt_formatos = "" if selecionar_pasta else f"(Formatos: {', '.join(extensoes_permitidas)})"
     
-    sistema = system_utils.detectar_sistema()
-    # Começa em um diretório mais universal
     dir_atual = Path.home()
-    
-    if sistema['termux']:
-        # Ordem de preferência para Termux
-        possible_paths = [
-            Path("/storage/emulated/0/Download"),
-            Path("/storage/emulated/0"),
-            Path.home() / 'storage' / 'shared',
-            Path.home() / 'downloads' # minúsculo
-        ]
-        for path in possible_paths:
-            if path.is_dir():
-                dir_atual = path
-                break
-    elif (Path.home() / 'Downloads').is_dir():
+    if (Path.home() / 'Downloads').is_dir():
          dir_atual = Path.home() / 'Downloads'
 
-
     while not shared_state.CANCELAR_PROCESSAMENTO:
-        if not dir_atual.is_dir():
-            print(f"❌ Diretório inválido: {dir_atual}. Usando diretório home.")
-            dir_atual = Path.home()
-            if not dir_atual.is_dir():
-                print("❌ Não foi possível encontrar um diretório válido. Saindo.")
-                return None
-        
         limpar_tela()
         print(f"📂 SELEÇÃO DE {prompt_titulo} {prompt_formatos}")
         print(f"\nDiretório atual: {dir_atual}")
         
         itens = []
         try:
-            # Garante que não tente voltar do diretório raiz
             if dir_atual.parent != dir_atual:
                  itens.append(("[..] (Voltar)", dir_atual.parent, True))
             
-            # Ordena pastas primeiro, depois arquivos, tudo alfabeticamente
             for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):
                 if item.is_dir():
                     itens.append((f"[{item.name}]", item, True))
@@ -161,7 +111,7 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
                     itens.append((item.name, item, False))
         except PermissionError:
             print(f"❌ Permissão negada para aceder: {dir_atual}")
-            dir_atual = dir_atual.parent # Tenta voltar um nível
+            dir_atual = dir_atual.parent
             await asyncio.sleep(2)
             continue
         
@@ -190,20 +140,14 @@ async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=Non
                     return str(path_sel)
             else:
                 print("❌ Opção inválida.")
-        except (ValueError, IndexError):
-            print("❌ Seleção inválida.")
-        except asyncio.CancelledError:
-            shared_state.CANCELAR_PROCESSAMENTO = True
-            return ""
-        await asyncio.sleep(0.5)
+        except (ValueError, IndexError, asyncio.CancelledError):
+            print("❌ Seleção inválida ou cancelada.")
+            await asyncio.sleep(0.5)
 
 # ================== LÓGICA CENTRAL DE CONVERSÃO ==================
 
 async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
-    """
-    Função central que executa todo o processo de conversão para um único ficheiro.
-    Retorna True em sucesso, False em falha.
-    """
+    """Função central que executa todo o processo de conversão para um único ficheiro."""
     print("-" * 50)
     print(f"▶️ A iniciar conversão para: {Path(caminho_arquivo).name}")
 
@@ -213,10 +157,6 @@ async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
         return False
 
     texto = file_handlers.ler_arquivo_texto(caminho_txt)
-    if not texto.strip():
-        print(f"⚠️ A saltar ficheiro (texto vazio): {Path(caminho_arquivo).name}")
-        return False
-
     partes_texto = tts_service.dividir_texto_para_tts(texto)
     if not partes_texto:
         print(f"⚠️ A saltar ficheiro (sem texto para converter): {Path(caminho_arquivo).name}")
@@ -230,43 +170,38 @@ async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
     arquivos_mp3_temporarios = [str(dir_saida_audio / f"temp_{i+1:04d}.mp3") for i in range(len(partes_texto))]
     
     semaphore = asyncio.Semaphore(config.LOTE_MAXIMO_TAREFAS_CONCORRENTES)
-    tarefas = []
     
-    async def run_conversion(p_texto, v, caminho, i, total):
+    # Função auxiliar para gerir o semáforo
+    async def run_conversion_with_semaphore(p_texto, v, caminho, i, total):
         async with semaphore:
             return await tts_service.converter_chunk_tts(p_texto, v, caminho, i, total)
 
-    for i, parte in enumerate(partes_texto):
-        tarefa = asyncio.create_task(run_conversion(parte, voz, arquivos_mp3_temporarios[i], i + 1, len(partes_texto)))
-        tarefas.append(tarefa)
+    tarefas = [
+        run_conversion_with_semaphore(parte, voz, arquivos_mp3_temporarios[i], i + 1, len(partes_texto))
+        for i, parte in enumerate(partes_texto)
+    ]
 
-    with tqdm(total=len(tarefas), desc=f"   TTS para {nome_base_audio[:15]:<15}...", ncols=80) as pbar:
-        for f in asyncio.as_completed(tarefas):
-            await f
-            pbar.update(1)
+    for f in tqdm(asyncio.as_completed(tarefas), total=len(tarefas), desc=f"   TTS para {nome_base_audio[:15]:<15}...", ncols=80):
+        await f
 
     arquivos_sucesso = [c for c in arquivos_mp3_temporarios if Path(c).exists() and Path(c).stat().st_size > 200]
-
     sucesso_final = False
-    if not arquivos_sucesso:
-        print(f"\n❌ Nenhuma parte foi convertida com sucesso para {nome_base_audio}")
-    else:
+
+    if arquivos_sucesso:
         arquivo_final_mp3 = dir_saida_audio / f"{nome_base_audio}_COMPLETO.mp3"
         if ffmpeg_utils.unificar_arquivos_audio_ffmpeg(arquivos_sucesso, str(arquivo_final_mp3)):
-            print(f"✅ Conversão concluída com sucesso para: {arquivo_final_mp3.name}")
+            print(f"\n✅ Conversão concluída: {arquivo_final_mp3.name}")
             sucesso_final = True
-        else:
-            print(f"❌ Falha ao unificar os áudios para {nome_base_audio}")
+    else:
+        print(f"\n❌ Nenhuma parte foi convertida com sucesso para {nome_base_audio}")
 
-    # **NOVA BARRA DE PROGRESSO AQUI**
-    # Itera sobre os arquivos temporários com uma barra de progresso para a limpeza.
     for temp_f in tqdm(arquivos_mp3_temporarios, desc="🚮 Limpando arquivos temporários", unit=" arq", ncols=80):
         Path(temp_f).unlink(missing_ok=True)
     
     return sucesso_final
 
 async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -> str:
-    """Orquestra a conversão (PDF/EPUB -> TXT) e formatação do texto."""
+    """Orquestra a conversão de qualquer formato para texto limpo e formatado."""
     if not caminho_arquivo_orig: return ""
     
     path_obj = Path(caminho_arquivo_orig)
@@ -275,14 +210,13 @@ async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -
     caminho_txt_formatado = dir_saida / f"{nome_base_limpo}_formatado.txt"
 
     if caminho_txt_formatado.exists():
-        if not await obter_confirmacao(f"Ficheiro '{caminho_txt_formatado.name}' já existe. Reprocessar?", default_yes=False):
+        if not await obter_confirmacao(f"'{caminho_txt_formatado.name}' já existe. Reprocessar?", default_yes=False):
             print("Usando ficheiro de texto pré-processado existente.")
             return str(caminho_txt_formatado)
 
     texto_bruto = ""
     extensao = path_obj.suffix.lower()
     
-    print(f"📖 Extraindo conteúdo de: {path_obj.name}")
     if extensao == '.pdf':
         caminho_txt_temp = dir_saida / f"{nome_base_limpo}_tempExtraido.txt"
         if not file_handlers.converter_pdf_para_txt(str(path_obj), str(caminho_txt_temp)): return ""
@@ -290,6 +224,8 @@ async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -
         Path(caminho_txt_temp).unlink(missing_ok=True)
     elif extensao == '.epub':
         texto_bruto = file_handlers.extrair_texto_de_epub(str(path_obj))
+    elif extensao == '.docx':
+        texto_bruto = file_handlers.extrair_texto_de_docx(str(path_obj))
     elif extensao == '.txt':
         texto_bruto = file_handlers.ler_arquivo_texto(str(path_obj))
     
@@ -299,7 +235,7 @@ async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -
         
     texto_final = text_processing.formatar_texto_para_tts(texto_bruto)
     file_handlers.salvar_arquivo_texto(str(caminho_txt_formatado), texto_final)
-    print(f"Arquivo salvo: {caminho_txt_formatado.name}")
+    print(f"✅ Texto formatado salvo em: {caminho_txt_formatado.name}")
     return str(caminho_txt_formatado)
 
 # ================== FLUXOS DE TRABALHO PRINCIPAIS (MENU) ==================
@@ -310,7 +246,7 @@ async def iniciar_conversao_tts():
     caminho_arquivo_orig = await _navegador_de_sistema(selecionar_pasta=False)
     if not caminho_arquivo_orig or shared_state.CANCELAR_PROCESSAMENTO: return
 
-    voz_padrao = settings_manager.obter_configuracao('voz_padrao')
+    voz_padrao = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
     
     if await obter_confirmacao(f"\nUsar a voz padrão ({voz_padrao})?", default_yes=True):
         voz_escolhida = voz_padrao
@@ -334,7 +270,7 @@ async def iniciar_conversao_em_lote():
     incluir_subpastas = await obter_confirmacao("Incluir subpastas na procura?", default_yes=True)
     
     print("\n🔎 A procurar ficheiros compatíveis...")
-    tipos_permitidos = ('.txt', '.pdf', '.epub')
+    tipos_permitidos = ('.txt', '.pdf', '.epub', '.docx')
     ficheiros_a_converter = []
     if incluir_subpastas:
         for root, _, files in os.walk(caminho_pasta):
@@ -353,15 +289,13 @@ async def iniciar_conversao_em_lote():
         return
 
     print(f"\n✅ {len(ficheiros_a_converter)} ficheiro(s) encontrado(s).")
-    
-    voz_padrao = settings_manager.obter_configuracao('voz_padrao')
+    voz_padrao = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
     print(f"\nℹ️ A conversão usará a voz padrão: {voz_padrao}")
 
     if not await obter_confirmacao("\nDeseja iniciar a conversão em lote?", default_yes=True):
         return
 
-    sucessos = 0
-    falhas = 0
+    sucessos, falhas = 0, 0
     for i, ficheiro in enumerate(ficheiros_a_converter):
         if shared_state.CANCELAR_PROCESSAMENTO:
             print("\n🚫 Processo em lote cancelado pelo utilizador.")
@@ -396,10 +330,10 @@ async def testar_vozes_tts():
         voz_escolhida = config.VOZES_PT_BR[escolha_idx - 1]
         
         while not shared_state.CANCELAR_PROCESSAMENTO:
-            velocidade_padrao = settings_manager.obter_configuracao('velocidade_padrao')
+            velocidade_padrao = settings_manager.obter_configuracao('velocidade_padrao') or "1.0"
             print("\n-----------------------------------")
             print(f"Voz selecionada: {voz_escolhida}")
-            print(f"Velocidade: {velocidade_padrao}")
+            print(f"Velocidade: x{velocidade_padrao}")
             
             texto_exemplo = await aioconsole.ainput("Digite o texto para teste (ou 'V' para voltar): ")
             if shared_state.CANCELAR_PROCESSAMENTO or texto_exemplo.strip().upper() == 'V':
@@ -432,7 +366,7 @@ async def testar_vozes_tts():
     await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
 async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
-    """Lógica interna para o fluxo de melhoria de multimédia (versão otimizada)."""
+    """Lógica interna para o fluxo de melhoria de multimédia."""
     limpar_tela()
     print(f"--- 🛠️ A MELHORAR: {Path(caminho_arquivo_entrada).name} ---")
 
@@ -465,7 +399,6 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
             print("\n🔄 A aplicar Normalização de Volume...")
             sucesso = ffmpeg_utils.normalizar_audio_ffmpeg(caminho_arquivo_entrada, str(caminho_arquivo_saida))
         elif escolha == 3:
-            # Menu simplificado para 144p e 240p
             print("\nSelecione a resolução (menor resolução = menor arquivo):")
             print("1. 240p (Recomendado)")
             print("2. 144p (Tamanho mínimo)")
@@ -513,33 +446,32 @@ async def exibir_ajuda():
 Este script foi desenhado para facilitar a conversão de texto para áudio (TTS) e realizar melhorias em ficheiros de áudio e vídeo.
 
 ➡️ Onde colocar os seus ficheiros?
-   - No telemóvel (Termux): Coloque seus ficheiros .txt, .pdf, ou .epub na pasta 'storage/shared/Download' ou qualquer outra pasta partilhada para que o script os possa encontrar.
+   - No telemóvel (Termux): Coloque seus ficheiros .txt, .pdf, .epub ou .docx na pasta 'storage/shared/Download' para que o script os possa encontrar.
    - No PC: Pode navegar para qualquer pasta no seu sistema.
 
 ➡️ O que cada opção faz?
 
 1.  🚀 CONVERTER UM ÚNICO FICHEIRO:
-    - Selecione um ficheiro .txt, .pdf ou .epub.
+    - Selecione um ficheiro compatível.
     - O script irá extrair o texto, limpá-lo e convertê-lo para um áudio MP3.
-    - O ficheiro de áudio final será guardado na mesma pasta do ficheiro original, dentro de um novo subdiretório.
+    - O ficheiro de áudio final será guardado na mesma pasta do ficheiro original.
 
 2.  📚 CONVERTER PASTA INTEIRA (LOTE):
     - Selecione uma pasta.
-    - O script irá procurar TODOS os ficheiros compatíveis (.txt, .pdf, .epub) dentro dela.
+    - O script irá procurar TODOS os ficheiros compatíveis dentro dela.
     - Cada ficheiro será convertido para áudio, usando a voz e velocidade padrão.
 
 3.  🎙️ TESTAR VOZES TTS:
     - Permite-lhe ouvir exemplos de todas as vozes disponíveis em Português do Brasil.
 
 4.  ⚡ MELHORAR ÁUDIO/VÍDEO:
-    - Selecione um ficheiro de áudio ou vídeo já existente.
-    - Pode aplicar melhorias como Redução de Ruído, Normalização de Volume ou converter um áudio para um vídeo MP4 otimizado.
+    - Selecione um ficheiro de áudio ou vídeo já existente para aplicar melhorias.
 
 5.  ⚙️ CONFIGURAÇÕES:
-    - Altere a voz padrão e a velocidade da fala que serão usadas nas conversões.
+    - Altere a voz padrão e a velocidade da fala.
 
 6.  🔄 ATUALIZAR SCRIPT:
-    - Verifica se existe uma nova versão do script no GitHub e instala-a automaticamente.
+    - Verifica se existe uma nova versão do script no GitHub e instala-a.
 
 7.  ❓ AJUDA:
     - Exibe esta tela.
@@ -547,11 +479,9 @@ Este script foi desenhado para facilitar a conversão de texto para áudio (TTS)
 0.  🚪 SAIR:
     - Encerra a aplicação.
 
-
 --- DICAS ---
 
 - CANCELAR: Pressione CTRL+C a qualquer momento para cancelar a operação atual.
-- DEPENDÊNCIAS: Certifique-se que executou o script de instalação correto (instalar-*.sh ou .bat) para instalar todas as dependências.
 """)
     await aioconsole.ainput("\nPressione ENTER para voltar ao menu principal...")
 
@@ -567,12 +497,12 @@ async def menu_gerenciar_configuracoes():
     while not shared_state.CANCELAR_PROCESSAMENTO:
         limpar_tela()
         print("⚙️ MENU DE CONFIGURAÇÕES")
-        voz_atual = settings_manager.obter_configuracao('voz_padrao')
-        velocidade_atual = settings_manager.obter_configuracao('velocidade_padrao')
+        voz_atual = settings_manager.obter_configuracao('voz_padrao') or config.VOZES_PT_BR[0]
+        velocidade_atual = settings_manager.obter_configuracao('velocidade_padrao') or "1.0"
         
         print(f"\nConfigurações atuais:")
         print(f"  Voz padrão: {voz_atual}")
-        print(f"  Velocidade padrão: {velocidade_atual}")
+        print(f"  Velocidade padrão: x{velocidade_atual}")
         print("\nOpções:")
         print("  1. Alterar voz padrão")
         print("  2. Alterar velocidade padrão")
@@ -590,19 +520,19 @@ async def menu_gerenciar_configuracoes():
             escolha_voz = await obter_opcao_numerica("Escolha a nova voz", len(config.VOZES_PT_BR))
             if 1 <= escolha_voz <= len(config.VOZES_PT_BR):
                 nova_voz = config.VOZES_PT_BR[escolha_voz - 1]
-                settings_manager.salvar_configuracoes('voz_padrao', nova_voz)
+                settings_manager.salvar_configuracoes(nova_voz, velocidade_atual)
                 print(f"✅ Voz padrão alterada para: {nova_voz}")
         elif escolha == 2:
             try:
-                nova_velocidade_str = await aioconsole.ainput(f"Nova velocidade (ex: 1.2 para 20% mais rápido, atual: {velocidade_atual}): ")
+                nova_velocidade_str = await aioconsole.ainput(f"Nova velocidade (ex: 1.2, atual: {velocidade_atual}): ")
                 nova_velocidade = float(nova_velocidade_str.replace(',', '.'))
-                if 0.5 <= nova_velocidade <= 3.0: # Aumentado o limite superior
-                    settings_manager.salvar_configuracoes('velocidade_padrao', f"x{nova_velocidade:.2f}")
-                    print(f"✅ Velocidade padrão alterada para: x{nova_velocidade:.2f}")
+                if 0.5 <= nova_velocidade <= 3.0:
+                    settings_manager.salvar_configuracoes(voz_atual, f"{nova_velocidade:.2f}")
+                    print(f"✅ Velocidade padrão alterada para: {nova_velocidade:.2f}")
                 else:
                     print("⚠️ Velocidade fora do intervalo permitido (0.5 a 3.0).")
-            except (ValueError, TypeError):
-                print("⚠️ Valor inválido para velocidade.")
+            except (ValueError, TypeError, asyncio.CancelledError):
+                print("⚠️ Valor inválido para velocidade ou operação cancelada.")
         
         await asyncio.sleep(1.5)
 
