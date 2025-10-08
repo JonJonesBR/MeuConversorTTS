@@ -85,7 +85,7 @@ async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict) -> int:
 async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=None):
     """Navegador de sistema de ficheiros interativo para selecionar um ficheiro ou pasta."""
     if extensoes_permitidas is None:
-        extensoes_permitidas = ['.txt', '.pdf', '.epub', '.docx']
+        extensoes_permitidas = ['.txt', '.pdf', '.epub']
     
     prompt_titulo = "PASTA" if selecionar_pasta else "FICHEIRO"
     prompt_formatos = "" if selecionar_pasta else f"(Formatos: {', '.join(extensoes_permitidas)})"
@@ -224,8 +224,6 @@ async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -
         Path(caminho_txt_temp).unlink(missing_ok=True)
     elif extensao == '.epub':
         texto_bruto = file_handlers.extrair_texto_de_epub(str(path_obj))
-    elif extensao == '.docx':
-        texto_bruto = file_handlers.extrair_texto_de_docx(str(path_obj))
     elif extensao == '.txt':
         texto_bruto = file_handlers.ler_arquivo_texto(str(path_obj))
     
@@ -270,7 +268,7 @@ async def iniciar_conversao_em_lote():
     incluir_subpastas = await obter_confirmacao("Incluir subpastas na procura?", default_yes=True)
     
     print("\n🔎 A procurar ficheiros compatíveis...")
-    tipos_permitidos = ('.txt', '.pdf', '.epub', '.docx')
+    tipos_permitidos = ('.txt', '.pdf', '.epub')
     ficheiros_a_converter = []
     if incluir_subpastas:
         for root, _, files in os.walk(caminho_pasta):
