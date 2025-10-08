@@ -85,64 +85,129 @@ async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict) -> int:
 async def _navegador_de_sistema(selecionar_pasta=False, extensoes_permitidas=None):
     """Navegador de sistema de ficheiros interativo para selecionar um ficheiro ou pasta."""
     if extensoes_permitidas is None:
-        extensoes_permitidas = ['.txt', '.pdf', '.epub', '.docx']
+        extensoes_permitidas = ['.txt', '.pdf', '.epub']
     
+    sistema = system_utils.detectar_sistema()
+    # Define diretório inicial baseado no SO
+    if sistema['termux'] or sistema['android']:
+        dir_atual = Path.home() / 'storage' / 'shared' / 'Download'  # Caminho comum no Termux
+        if not dir_atual.exists():  # Fallback para o home do Termux
+            dir_atual = Path.home() / 'downloads'
+        if not dir_atual.exists():  # Fallback para o storage downloads
+            dir_atual = Path("/storage/emulated/0/Download")
+    elif sistema['windows']:
+        dir_atual = Path.home() / 'Downloads'
+        if not dir_atual.exists():
+            dir_atual = Path.home() / 'Desktop'  # Fallback
+    else:  # Linux, macOS
+        dir_atual = Path.home() / 'Downloads'
+        if not dir_atual.exists():
+            dir_atual = Path.home() # Fallback
+
+    if not dir_atual.is_dir():  # Se o caminho não for um diretório válido
+        dir_atual = Path.cwd()
+        print(f"⚠️ Pasta Downloads padrão não encontrada ou inválida, usando diretório atual: {dir_atual}")
+
     prompt_titulo = "PASTA" if selecionar_pasta else "FICHEIRO"
     prompt_formatos = "" if selecionar_pasta else f"(Formatos: {', '.join(extensoes_permitidas)})"
     
-    dir_atual = Path.home()
-    if (Path.home() / 'Downloads').is_dir():
-         dir_atual = Path.home() / 'Downloads'
-
     while not shared_state.CANCELAR_PROCESSAMENTO:
         limpar_tela()
         print(f"📂 SELEÇÃO DE {prompt_titulo} {prompt_formatos}")
         print(f"\nDiretório atual: {dir_atual}")
         
-        itens = []
+        itens_no_diretorio = []
         try:
-            if dir_atual.parent != dir_atual:
-                 itens.append(("[..] (Voltar)", dir_atual.parent, True))
+            # Adiciona ".." para subir um nível
+            if dir_atual.parent != dir_atual:  # Não mostrar ".." se já estiver na raiz
+                itens_no_diretorio.append(("[..] (Voltar)", dir_atual.parent, True))  # (Nome, Path, É Diretório)
             
+            # Listar diretórios primeiro, depois arquivos
+            diretorios_listados = []
+            arquivos_listados = []
+
             for item in sorted(list(dir_atual.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower())):
                 if item.is_dir():
-                    itens.append((f"[{item.name}]", item, True))
-                elif not selecionar_pasta and item.suffix.lower() in extensoes_permitidas:
-                    itens.append((item.name, item, False))
+                    diretorios_listados.append((f"[{item.name}]", item, True))
+                elif item.suffix.lower() in extensoes_permitidas:
+                    arquivos_listados.append((item.name, item, False))
+            
+            itens_no_diretorio.extend(diretorios_listados)
+            itens_no_diretorio.extend(arquivos_listados)
+
         except PermissionError:
-            print(f"❌ Permissão negada para aceder: {dir_atual}")
-            dir_atual = dir_atual.parent
+            print(f"❌ Permissão negada para acessar: {dir_atual}")
+            # Tenta voltar para o diretório pai ou home se der erro de permissão
+            if dir_atual.parent != dir_atual:
+                dir_atual = dir_atual.parent
+            else:
+                dir_atual = Path.home()
             await asyncio.sleep(2)
             continue
-        
-        for i, (nome, _, _) in enumerate(itens):
+        except Exception as e:
+            print(f"❌ Erro ao listar diretório {dir_atual}: {e}")
+            dir_atual = Path.home()  # Tenta resetar para home
+            await asyncio.sleep(2)
+            continue
+
+        if not any(not item[2] for item in itens_no_diretorio):  # Verifica se há algum arquivo (não diretório) na lista
+            # A mensagem só deve aparecer se não houver arquivos, mesmo que haja o [..]
+            is_root_and_empty = dir_atual.parent == dir_atual and not any(item_path.is_file() for _, item_path, _ in itens_no_diretorio if item_path.is_file())
+            if not itens_no_diretorio or (len(itens_no_diretorio) == 1 and itens_no_diretorio[0][0].startswith("[..]")) or is_root_and_empty:
+                print(f"\n⚠️ Nenhum arquivo com as extensões permitidas ({', '.join(extensoes_permitidas)}) encontrado em {dir_atual}")
+
+        for i, (nome, _, is_dir) in enumerate(itens_no_diretorio):
             print(f"{i+1}. {nome}")
         
         print("\nOpções:")
         if selecionar_pasta:
             print("A. Selecionar esta pasta atual")
+        print("M. Digitar caminho manualmente")
         print("V. Voltar ao menu anterior")
 
         try:
-            escolha_str = (await aioconsole.ainput("\nEscolha um número ou opção: ")).strip().upper()
-            if shared_state.CANCELAR_PROCESSAMENTO: return ""
+            raw_input_str = await aioconsole.ainput("\nEscolha uma opção ou número: ")
+            escolha_str = raw_input_str.strip().upper()
 
             if escolha_str == 'V': return ""
             if selecionar_pasta and escolha_str == 'A':
                 return str(dir_atual)
+            if escolha_str == 'M':
+                caminho_manual_raw = await aioconsole.ainput("Digite o caminho completo do arquivo: ")
+                caminho_manual_str = caminho_manual_raw.strip()  # Strip antes de criar o Path
+                if not caminho_manual_str:  # Input vazio
+                    print("⚠️ Caminho não pode ser vazio.")
+                    await asyncio.sleep(1.5)
+                    continue
+
+                caminho_manual_path = Path(caminho_manual_str)
+                if caminho_manual_path.is_file() and caminho_manual_path.suffix.lower() in extensoes_permitidas:
+                    return str(caminho_manual_path)
+                else:
+                    print(f"❌ Caminho inválido ('{caminho_manual_str}') ou tipo de arquivo não permitido.")
+                    await asyncio.sleep(1.5)
+                    continue
             
-            idx_escolha = int(escolha_str) - 1
-            if 0 <= idx_escolha < len(itens):
-                _, path_sel, is_dir_sel = itens[idx_escolha]
-                if is_dir_sel:
-                    dir_atual = path_sel
-                elif not selecionar_pasta:
-                    return str(path_sel)
+            if escolha_str.isdigit():
+                idx_escolha = int(escolha_str) - 1
+                if 0 <= idx_escolha < len(itens_no_diretorio):
+                    nome_sel, path_sel, is_dir_sel = itens_no_diretorio[idx_escolha]
+                    if is_dir_sel:
+                        dir_atual = path_sel
+                    else:  # É arquivo
+                        return str(path_sel)
+                else:
+                    print("❌ Opção numérica inválida.")
             else:
                 print("❌ Opção inválida.")
-        except (ValueError, IndexError, asyncio.CancelledError):
-            print("❌ Seleção inválida ou cancelada.")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
+
+        except (ValueError, IndexError):
+            print("❌ Seleção inválida.")
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:  # Trata Ctrl+C durante o input
+            print("\n🚫 Seleção cancelada.")
+            return ""  # Ou raise para ser pego mais acima
 
 # ================== LÓGICA CENTRAL DE CONVERSÃO ==================
 
@@ -181,22 +246,106 @@ async def _executar_conversao_de_arquivo(caminho_arquivo: str, voz: str):
         for i, parte in enumerate(partes_texto)
     ]
 
-    for f in tqdm(asyncio.as_completed(tarefas), total=len(tarefas), desc=f"   TTS para {nome_base_audio[:15]:<15}...", ncols=80):
-        await f
+    # --- INÍCIO DA LÓGICA DE PROGRESSO LEVE ---
+    import time
+    import sys
+    
+    # Converte as coroutines em tasks para poder cancelá-las
+    tasks_list = [asyncio.create_task(task) for task in tarefas]
+    
+    partes_concluidas = 0
+    partes_com_falha = 0
+    total_partes = len(tasks_list)
+    tempo_ultima_atualizacao_progresso = time.monotonic()
+
+    def imprimir_progresso():
+        porcentagem = (partes_concluidas / total_partes) * 100 if total_partes > 0 else 0
+        # \r para voltar ao início da linha e sobrescrever
+        # sys.stdout.write para evitar nova linha automática do print
+        sys.stdout.write(f"\r   Progresso TTS: {partes_concluidas}/{total_partes} ({porcentagem:.1f}%) | Falhas: {partes_com_falha}   ")
+        sys.stdout.flush() # Garante que a saída seja exibida imediatamente
+
+    if tasks_list:
+        print(f"📦 Processando {len(tasks_list)} tarefas TTS com concorrência de {config.LOTE_MAXIMO_TAREFAS_CONCORRENTES}...")
+        imprimir_progresso() # Imprime o estado inicial (0%)
+
+        for future_task in asyncio.as_completed(tasks_list):
+            if shared_state.CANCELAR_PROCESSAMENTO:
+                for t_restante in tasks_list:
+                    if not t_restante.done(): t_restante.cancel()
+                break
+            try:
+                sucesso_tarefa = await future_task
+                
+                if sucesso_tarefa:
+                    pass  # Sucesso
+                else:
+                    partes_com_falha += 1
+                
+            except asyncio.CancelledError:
+                # Não incrementa falha aqui, pois foi cancelado, não uma falha de conversão
+                pass
+            except Exception as e_task:
+                print(f"\n   ⚠️ Erro inesperado ao processar tarefa TTS: {e_task}")
+                partes_com_falha += 1
+
+            partes_concluidas += 1 # Incrementa partes processadas (concluídas ou falhadas)
+            
+            # Atualiza o progresso no console com menos frequência
+            agora = time.monotonic()
+            if agora - tempo_ultima_atualizacao_progresso > 0.3 or partes_concluidas == total_partes: # Atualiza a cada 0.3s ou no final
+                imprimir_progresso()
+                tempo_ultima_atualizacao_progresso = agora
+        
+        sys.stdout.write("\n") # Nova linha após a conclusão do progresso
+    # --- FIM DA LÓGICA DE PROGRESSO LEVE ---
 
     arquivos_sucesso = [c for c in arquivos_mp3_temporarios if Path(c).exists() and Path(c).stat().st_size > 200]
     sucesso_final = False
 
     if arquivos_sucesso:
         arquivo_final_mp3 = dir_saida_audio / f"{nome_base_audio}_COMPLETO.mp3"
-        if ffmpeg_utils.unificar_arquivos_audio_ffmpeg(arquivos_sucesso, str(arquivo_final_mp3)):
+        # Tenta unificar usando FFmpeg primeiro
+        sucesso_unificacao = ffmpeg_utils.unificar_arquivos_audio_ffmpeg(arquivos_sucesso, str(arquivo_final_mp3))
+        
+        # Se FFmpeg falhar, tenta usar a alternativa em Python
+        if not sucesso_unificacao:
+            print("⚠️ FFmpeg não disponível ou falhou. Tentando método alternativo...")
+            sucesso_unificacao = file_handlers.unificar_arquivos_audio(arquivos_sucesso, str(arquivo_final_mp3))
+        
+        if sucesso_unificacao:
             print(f"\n✅ Conversão concluída: {arquivo_final_mp3.name}")
             sucesso_final = True
+        else:
+            print(f"\n⚠️ Conversão parcial concluída. Áudios individuais mantidos em: {dir_saida_audio}")
+            print(f"   Arquivos individuais: {len(arquivos_sucesso)} partes")
     else:
         print(f"\n❌ Nenhuma parte foi convertida com sucesso para {nome_base_audio}")
 
-    for temp_f in tqdm(arquivos_mp3_temporarios, desc="🚮 Limpando arquivos temporários", unit=" arq", ncols=80):
-        Path(temp_f).unlink(missing_ok=True)
+    # Limpar apenas os arquivos que não tiveram sucesso, ou manter todos se a unificação falhar
+    arquivos_para_limpar = []
+    arquivos_para_manter = []
+    
+    for temp_f in arquivos_mp3_temporarios:
+        temp_path = Path(temp_f)
+        if temp_path.exists() and temp_path.stat().st_size > 200:
+            # Arquivo existe e tem tamanho razoável
+            if not sucesso_final:  # Se a unificação falhou, mantemos os arquivos individuais
+                arquivos_para_manter.append(temp_f)
+            else:
+                # Se a unificação foi bem-sucedida, podemos limpar os temporários
+                arquivos_para_limpar.append(temp_f)
+        else:
+            # Arquivo não existe ou é inválido, pode ser removido
+            arquivos_para_limpar.append(temp_f)
+    
+    if arquivos_para_limpar:
+        for temp_f in tqdm(arquivos_para_limpar, desc="🚮 Limpando arquivos temporários", unit=" arq", ncols=80):
+            Path(temp_f).unlink(missing_ok=True)
+    
+    if arquivos_para_manter and not sucesso_final:
+        print(f"\n📁 Áudios individuais mantidos em: {dir_saida_audio}")
+        print(f"   Total de {len(arquivos_para_manter)} arquivos de áudio individuais disponíveis")
     
     return sucesso_final
 
@@ -224,8 +373,6 @@ async def _processar_arquivo_selecionado_para_texto(caminho_arquivo_orig: str) -
         Path(caminho_txt_temp).unlink(missing_ok=True)
     elif extensao == '.epub':
         texto_bruto = file_handlers.extrair_texto_de_epub(str(path_obj))
-    elif extensao == '.docx':
-        texto_bruto = file_handlers.extrair_texto_de_docx(str(path_obj))
     elif extensao == '.txt':
         texto_bruto = file_handlers.ler_arquivo_texto(str(path_obj))
     
@@ -270,7 +417,7 @@ async def iniciar_conversao_em_lote():
     incluir_subpastas = await obter_confirmacao("Incluir subpastas na procura?", default_yes=True)
     
     print("\n🔎 A procurar ficheiros compatíveis...")
-    tipos_permitidos = ('.txt', '.pdf', '.epub', '.docx')
+    tipos_permitidos = ('.txt', '.pdf', '.epub')
     ficheiros_a_converter = []
     if incluir_subpastas:
         for root, _, files in os.walk(caminho_pasta):

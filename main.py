@@ -16,6 +16,32 @@ import shared_state
 import system_utils
 import settings_manager
 
+def verificar_instalar_dependencias():
+    """Verifica e instala dependências do requirements.txt."""
+    import subprocess
+    import sys
+    import pkg_resources
+
+    try:
+        with open('requirements.txt', 'r', encoding='utf-8') as f:
+            requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        
+        for req in requirements:
+            try:
+                pkg_resources.get_distribution(req.split('>=')[0].split('==')[0])
+            except pkg_resources.DistributionNotFound:
+                print(f"⚠️ Pacote {req} não encontrado. Instalando...")
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", req])
+                    print(f"✅ Pacote {req} instalado com sucesso!")
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Erro ao instalar {req}: {e}")
+    except FileNotFoundError:
+        print("⚠️ Arquivo requirements.txt não encontrado.")
+    except Exception as e:
+        print(f"❌ Erro ao verificar dependências: {e}")
+
+
 def verificar_permissoes_termux():
     """Verifica se as permissões de armazenamento estão concedidas no Termux."""
     sistema = system_utils.detectar_sistema()
@@ -106,6 +132,7 @@ if __name__ == "__main__":
     # ---- Bloco de inicialização ----
     settings_manager.carregar_configuracoes()
     system_utils.verificar_dependencias_essenciais()
+    verificar_instalar_dependencias()
     verificar_permissoes_termux()
     # ------------------------------------
 

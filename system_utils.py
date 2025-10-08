@@ -142,7 +142,12 @@ def verificar_dependencias_essenciais() -> None:
             'termux': ['pkg install ffmpeg'],
             'linux': ['sudo apt install ffmpeg', 'sudo yum install ffmpeg'],
             'macos': ['brew install ffmpeg'],
-            'windows': ['Baixe em https://ffmpeg.org/download.html e adicione ao PATH']
+            'windows': [
+                '1. Baixe em https://ffmpeg.org/download.html',
+                '2. Extraia o conteúdo em uma pasta (ex: C:\\ffmpeg)',
+                '3. Adicione o caminho "C:\\ffmpeg\\bin" ao PATH do sistema',
+                '4. Reinicie o terminal para aplicar as alterações'
+            ]
         }
     )
     

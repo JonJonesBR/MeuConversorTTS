@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import re
 import edge_tts
 
 # Importa de nossos outros módulos
@@ -18,49 +19,71 @@ import settings_manager  # <-- Import necessário para obter velocidade padrão
 
 def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     """
-    Divide o texto completo em blocos (chunks) otimizados para a API TTS.
-
-    Esta função agrupa parágrafos de forma inteligente, garantindo que cada
-    bloco tenha tamanho próximo ao limite máximo permitido, sem quebrar frases
-    ou palavras no meio, reduzindo chamadas e melhorando o fluxo do áudio.
+    Divide o texto em partes menores para TTS, respeitando parágrafos e frases,
+    buscando um equilíbrio para performance.
     """
     print(f"Dividindo texto em chunks de ate {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
     
-    paragrafos = texto_processado.split('\n\n')
-    if not paragrafos:
-        return []
+    partes_iniciais = texto_processado.split('\n\n') # Primeiro por parágrafos
+    partes_finais = []
 
-    chunks_finais: list[str] = []
-    chunk_atual = ""
-
-    for paragrafo in paragrafos:
-        paragrafo = paragrafo.strip()
-        if not paragrafo:
+    for p_inicial in partes_iniciais:
+        p_strip = p_inicial.strip()
+        if not p_strip:
             continue
 
-        if len(paragrafo) > config.LIMITE_CARACTERES_CHUNK_TTS:
-            if chunk_atual:
-                chunks_finais.append(chunk_atual)
-            # Se um parágrafo isolado excede o limite, envia como está (evita truncar).
-            chunks_finais.append(paragrafo)
-            chunk_atual = ""
+        # Se o parágrafo inteiro já é menor que o limite, adiciona-o
+        if len(p_strip) < config.LIMITE_CARACTERES_CHUNK_TTS:
+            partes_finais.append(p_strip)
             continue
 
-        if len(chunk_atual) + len(paragrafo) + 2 > config.LIMITE_CARACTERES_CHUNK_TTS:
-            if chunk_atual:
-                chunks_finais.append(chunk_atual)
-            chunk_atual = paragrafo
-        else:
-            if chunk_atual:
-                chunk_atual += "\n\n" + paragrafo
+        # Se o parágrafo é maior, tenta dividir por frases, agrupando-as.
+        # Usar regex para dividir por frases, mantendo os delimitadores.
+        frases_com_delimitadores = re.split(r'([.!?…]+)', p_strip)
+        segmento_atual = ""
+
+        idx_frase = 0
+        while idx_frase < len(frases_com_delimitadores):
+            frase_atual = frases_com_delimitadores[idx_frase].strip()
+            delimitador = ""
+            if idx_frase + 1 < len(frases_com_delimitadores):
+                delimitador = frases_com_delimitadores[idx_frase + 1].strip()
+            
+            trecho_completo = frase_atual
+            if delimitador: # Adiciona o delimitador se existir
+                trecho_completo += delimitador
+            trecho_completo = trecho_completo.strip()
+
+            if not trecho_completo: # Pula se a frase/delimitador for vazio
+                idx_frase += 2 if delimitador else 1
+                continue
+
+            # Se adicionar o trecho atual não excede o limite do chunk
+            if len(segmento_atual) + len(trecho_completo) + (1 if segmento_atual else 0) <= config.LIMITE_CARACTERES_CHUNK_TTS:
+                segmento_atual += (" " if segmento_atual else "") + trecho_completo
             else:
-                chunk_atual = paragrafo
-    
-    if chunk_atual:
-        chunks_finais.append(chunk_atual)
-    
-    print(f"Texto dividido em {len(chunks_finais)} parte(s).")
-    return [p for p in chunks_finais if p.strip()]
+                # O trecho atual faria o segmento exceder. Finaliza o segmento atual.
+                if segmento_atual: # Adiciona o segmento anterior se não estiver vazio
+                    partes_finais.append(segmento_atual)
+                
+                # O trecho atual se torna o novo segmento.
+                # Se o próprio trecho já for maior que o limite, precisa ser quebrado (caso raro para uma frase)
+                if len(trecho_completo) > config.LIMITE_CARACTERES_CHUNK_TTS:
+                    # Quebra o trecho grande em pedaços menores que o limite
+                    for i in range(0, len(trecho_completo), config.LIMITE_CARACTERES_CHUNK_TTS):
+                        partes_finais.append(trecho_completo[i:i+config.LIMITE_CARACTERES_CHUNK_TTS])
+                    segmento_atual = "" # Reseta, pois o trecho grande foi totalmente processado
+                else:
+                    segmento_atual = trecho_completo # Inicia novo segmento com o trecho atual
+
+            idx_frase += 2 if delimitador else 1 # Avança para a próxima frase e seu delimitador
+
+        # Adiciona o último segmento que pode ter sobrado
+        if segmento_atual:
+            partes_finais.append(segmento_atual)
+
+    print(f"Texto dividido em {len(partes_finais)} parte(s).")
+    return [p for p in partes_finais if p.strip()] # Garante que não há chunks vazios
 
 
 async def converter_texto_para_audio(texto: str, voz: str, caminho_saida: str, velocidade: str = "x1.0") -> tuple[bool, str]:

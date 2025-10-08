@@ -16,6 +16,7 @@ Este projeto foi reestruturado para ser mais robusto, fácil de manter e de evol
   - Conversão de números cardinais e ordinais (123 → cento e vinte e três, 1º → primeiro).
   - Normalização de capítulos (Capítulo IV → CAPÍTULO 4.).
 - ⚡ **Pós-processamento de Áudio**: Acelere, divida ou melhore a qualidade dos seus arquivos de áudio.
+- 🔄 **Unificação de Áudio Aprimorada**: Sistema robusto de fallback que concatena arquivos de áudio mesmo quando FFmpeg ou pydub não estão disponíveis ou compatíveis.
 - 🎬 **Criação de Vídeo**: Converta arquivos MP3 em vídeos MP4 com uma tela preta, ideal para uploads.
 - 🔧 **Gerenciamento de Dependências**: Instalação simplificada com `requirements.txt` e ambientes virtuais.
 

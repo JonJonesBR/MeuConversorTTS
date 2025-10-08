@@ -13,10 +13,15 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
+import time
 from pathlib import Path
 from typing import List, Optional, IO, cast
 
 from tqdm import tqdm
+
+# Importar a função limpar_nome_arquivo de file_handlers
+from file_handlers import limpar_nome_arquivo
 
 # ----------------------------------------------------------------------
 # Helpers básicos
@@ -27,18 +32,55 @@ def _obter_caminho_executavel(nome: str) -> str:
     return nome
 
 def _executar_comando_simples(comando: List[str]) -> bool:
-    """Executa um comando simples (sem leitura de progresso) e retorna True/False."""
+    """Executa um comando FFmpeg e exibe indicador de atividade."""
     try:
         flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-        subprocess.run(comando, check=True, capture_output=True, text=True, creationflags=flags)
+        
+        # Executar o processo e capturar stdout e stderr
+        process = subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   universal_newlines=True, encoding='utf-8', errors='ignore',
+                                   creationflags=flags)
+        
+        stderr_output = ""
+        activity_indicator_time = time.monotonic() # Para o indicador de atividade simples
+        
+        # Loop para ler stderr e mostrar indicador de atividade
+        while process.poll() is None: # Enquanto o processo estiver rodando
+            # Se NÃO temos duração (ex: unificação), imprimimos um ponto periodicamente
+            current_time_loop = time.monotonic()
+            if current_time_loop - activity_indicator_time > 1.0: # A cada 1 segundo
+                sys.stdout.write(".") # Imprime um ponto
+                sys.stdout.flush()    # Garante que apareça
+                activity_indicator_time = current_time_loop
+            time.sleep(0.1) # Pausa curta para não sobrecarregar o loop while
+
+        # Processo terminou
+        print() # Para que a próxima mensagem não fique na mesma linha dos pontos
+
+        # Coleta o restante do stderr após o loop (importante para mensagens de erro completas)
+        stdout_final, stderr_final = process.communicate()
+        stderr_output += stderr_final
+        
+        return_code = process.returncode # Pega o código de retorno após communicate
+
+        if return_code != 0:
+            print(f"\nX Erro durante execucao do comando FFmpeg (codigo {return_code}):")
+            error_lines = stderr_output.strip().splitlines()
+            relevant_errors = [ln for ln in error_lines[-20:] if 'error' in ln.lower() or ln.strip().startswith('[') or "failed" in ln.lower()]
+            if not relevant_errors: relevant_errors = error_lines[-10:]
+            print("\n".join(f"   {line}" for line in relevant_errors))
+            return False
+
+        print(f"OK Comando FFmpeg concluido com sucesso.")
         return True
+
     except FileNotFoundError:
-        print("❌ FFmpeg/FFprobe não encontrado no PATH.")
+        print("X FFmpeg/FFprobe nao encontrado no PATH.")
         return False
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Erro ao executar o comando FFmpeg:")
-        print(f"   Comando: {' '.join(comando)}")
-        print(f"   Saída: {e.stderr}")
+    except Exception as e:
+        print(f"X Erro inesperado durante execucao do comando FFmpeg: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def _remover_args_progresso(cmd: List[str]) -> List[str]:
@@ -195,37 +237,50 @@ def unificar_arquivos_audio_ffmpeg(lista_arquivos: List[str], caminho_saida: str
     if not lista_arquivos:
         print("⚠️ Lista de arquivos vazia.")
         return False
+    
+    # Cria um arquivo de lista para o FFmpeg concat demuxer
+    # Usar caminhos absolutos e sanitizados para o file list
+    dir_saida = os.path.dirname(caminho_saida)
+    os.makedirs(dir_saida, exist_ok=True) # Garante que o diretório de saída existe
+    # Limpa o nome do arquivo de lista para evitar caracteres problemáticos
+    nome_lista_limpo = limpar_nome_arquivo(f"_{Path(caminho_saida).stem}_filelist.txt")
+    caminho_lista = Path(dir_saida) / nome_lista_limpo
 
-    caminho_lista = Path(caminho_saida).with_suffix('.txt')
     try:
-        if caminho_lista.exists():
-            caminho_lista.unlink()
-        with open(caminho_lista, 'w', encoding='utf-8') as f:
-            for p in lista_arquivos:
-                f.write(f"file '{Path(p).as_posix()}'\n")
-
+        with open(caminho_lista, "w", encoding='utf-8') as f_list:
+            for temp_file in lista_arquivos:
+                # FFmpeg concat demuxer precisa de caminhos 'safe'
+                # Escapar caracteres especiais para o formato do arquivo de lista
+                safe_path = str(Path(temp_file).resolve()).replace("'", r"\'")
+                f_list.write(f"file '{safe_path}'\n")
+        
         comando = [
             _obter_caminho_executavel('ffmpeg'),
             '-y',
             '-f', 'concat',
-            '-safe', '0',
+            '-safe', '0', # -safe 0 é necessário para caminhos absolutos
             '-i', str(caminho_lista),
-            '-c', 'copy',
+            '-c', 'copy', # Copia os codecs sem reencodar
             caminho_saida
         ]
+        # A unificação com -c copy é rápida e não fornece progresso útil por tempo
         return _executar_comando_simples(comando)
+    except IOError as e:
+        print(f"❌ Erro ao criar arquivo de lista para FFmpeg: {e}")
+        return False
     finally:
-        try:
-            if caminho_lista.exists():
+        # Remove o arquivo de lista temporário
+        if caminho_lista.exists():
+            try:
                 caminho_lista.unlink()
-        except Exception:
-            pass
+            except Exception as e_unlink:
+                print(f"⚠️ Não foi possível remover o arquivo de lista temporário {caminho_lista}: {e_unlink}")
 
 # ----------------------------------------------------------------------
 # Geração de vídeo (imagem estática + áudio)
 # ----------------------------------------------------------------------
 
-def criar_video_a_partir_de_audio(caminho_imagem: str, caminho_audio: str, caminho_saida: str) -> bool:
+def criar_video_a_partir_de_audio(caminho_imagem: str, caminho_audio: str, caminho_saida: str, resolucao_str: str = "640x360") -> bool:
     """
     Gera um vídeo MP4 a partir de uma imagem estática e um arquivo de áudio,
     com barra de progresso baseada na duração do áudio.
@@ -235,18 +290,15 @@ def criar_video_a_partir_de_audio(caminho_imagem: str, caminho_audio: str, camin
     comando = [
         _obter_caminho_executavel('ffmpeg'),
         '-y',
-        '-loop', '1',
-        '-i', caminho_imagem,
+        '-f', 'lavfi', '-i', f"color=c=black:s={resolucao_str}:r=1:d={duracao:.3f}",
         '-i', caminho_audio,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'stillimage',
-        '-crf', '23',
-        '-r', '1',
-        '-c:a', 'copy',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-pix_fmt', 'yuv420p',
         '-shortest',
-        '-nostats',
-        '-progress', 'pipe:1',
         caminho_saida
     ]
     return _executar_com_progresso(comando, duracao, "🎬 Gerando Vídeo")
