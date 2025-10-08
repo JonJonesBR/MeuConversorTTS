@@ -1,50 +1,48 @@
 # -*- coding: utf-8 -*-
 """
-Módulo para manipulação de arquivos: ler, salvar, converter PDF/EPUB
-e outras operações de I/O.
+Manipulação de arquivos: leitura/gravação de texto, PDF→TXT via pdftotext,
+extração de texto de EPUB/DOCX e utilidades.
 """
+from __future__ import annotations
+
 import os
 import re
 import unicodedata
-import zipfile
 import subprocess
 from pathlib import Path
-import shutil
+from typing import List, Optional
 
 import chardet
-from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+# Dependências opcionais
+try:
+    from bs4 import BeautifulSoup
+except Exception:
+    BeautifulSoup = None  # type: ignore
 
 try:
     from ebooklib import epub, ITEM_DOCUMENT
+except Exception:
+    epub = None  # type: ignore
+    ITEM_DOCUMENT = None  # type: ignore
+
+try:
     from docx import Document
-except ImportError:
-    print("Dependências ausentes. Por favor, instale 'ebooklib', 'beautifulsoup4' e 'python-docx'.")
-    exit()
+except Exception:
+    Document = None  # type: ignore
 
-# Importa de nossos outros módulos
-import config
-import system_utils
-
-def detectar_encoding_arquivo(caminho_arquivo: str) -> str:
-    """Detecta o encoding de um arquivo de texto com alta probabilidade."""
-    try:
-        with open(caminho_arquivo, 'rb') as f:
-            raw_data = f.read(50000)
-        resultado = chardet.detect(raw_data)
-        encoding = resultado['encoding']
-        if encoding and resultado['confidence'] > 0.7:
-            return encoding
-        return 'utf-8' # Padrão final
-    except Exception:
-        return 'utf-8'
+# ----------------------------------------------------------------------
+# I/O básico
+# ----------------------------------------------------------------------
 
 def ler_arquivo_texto(caminho_arquivo: str) -> str:
-    """Lê um arquivo de texto usando o encoding detectado."""
-    encoding = detectar_encoding_arquivo(caminho_arquivo)
+    """Lê um arquivo de texto tentando detectar o encoding."""
     try:
-        with open(caminho_arquivo, 'r', encoding=encoding, errors='replace') as f:
-            return f.read()
+        with open(caminho_arquivo, 'rb') as f:
+            dados = f.read()
+        enc = chardet.detect(dados).get('encoding') or 'utf-8'
+        return dados.decode(enc, errors='replace')
     except Exception as e:
         print(f"❌ Erro ao ler arquivo '{caminho_arquivo}': {e}")
         return ""
@@ -66,73 +64,92 @@ def limpar_nome_arquivo(nome: str) -> str:
     nome_limpo = re.sub(r'[-\s]+', '_', nome_limpo)
     return nome_limpo + ext if ext else nome_limpo
 
+# ----------------------------------------------------------------------
+# Conversão de PDF (pdftotext)
+# ----------------------------------------------------------------------
+
 def converter_pdf_para_txt(caminho_pdf: str, caminho_txt: str) -> bool:
     """Converte um arquivo PDF para TXT usando a ferramenta pdftotext."""
     print(f"📖 Extraindo conteúdo de: {Path(caminho_pdf).name}")
     try:
         comando = ["pdftotext", "-layout", "-enc", "UTF-8", caminho_pdf, caminho_txt]
-        subprocess.run(comando, check=True, capture_output=True)
+        subprocess.run(comando, check=True, capture_output=True,
+                       creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Erro ao converter PDF: {e.stderr.decode(errors='ignore')}")
-        return False
     except FileNotFoundError:
-        print("❌ Comando 'pdftotext' não encontrado. Verifique se o Poppler está instalado e no PATH.")
+        print("❌ 'pdftotext' não encontrado. Instale o Poppler e garanta que esteja no PATH.")
         return False
-    except Exception as e:
-        print(f"❌ Erro inesperado ao converter PDF: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Erro ao converter PDF: {e.stderr.decode(errors='ignore') if e.stderr else e}")
         return False
+
+# ----------------------------------------------------------------------
+# EPUB
+# ----------------------------------------------------------------------
 
 def extrair_texto_de_epub(caminho_epub: str) -> str:
     """
-    Extrai o conteúdo de texto de um arquivo EPUB, limpando as tags HTML.
-    Versão robusta para lidar com EPUBs mal formatados.
+    Extrai o conteúdo de texto de um EPUB, lidando com EPUBs sem spine.
+    Dependências: ebooklib + beautifulsoup4.
     """
     print(f"📖 Extraindo conteúdo de: {Path(caminho_epub).name}")
+    if epub is None or ITEM_DOCUMENT is None or BeautifulSoup is None:
+        print("❌ Dependências para EPUB ausentes. Instale: pip install ebooklib beautifulsoup4")
+        return ""
+
     try:
         livro = epub.read_epub(caminho_epub)
-        partes_texto = []
-        
-        # Tenta obter a ordem correta dos capítulos (spine)
-        itens_ordenados = livro.spine
-        if not itens_ordenados:
-            print("⚠️ 'Spine' do EPUB não encontrado ou vazio. Tentando ler todos os documentos...")
-            itens_ordenados = livro.get_items_of_type(ITEM_DOCUMENT)
+        partes_texto: List[str] = []
 
-        for item_id, _ in tqdm(itens_ordenados, desc="Processando capítulos do EPUB"):
-            # Obtém o item do livro pelo ID
-            item = livro.get_item_with_id(item_id)
-            
-            # Validação crucial: verifica se o item realmente existe
-            if item is None:
-                # print(f"Aviso: Item com id '{item_id}' listado no spine mas não encontrado no manifesto. A ignorar.")
-                continue
-
-            try:
-                soup = BeautifulSoup(item.get_content(), 'html.parser')
-                
-                # Remove tags irrelevantes para o conteúdo de áudio
-                for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'a', 'img']):
-                    tag.decompose()
-
-                texto_item = soup.get_text(separator='\n', strip=True)
-                if texto_item:
-                    partes_texto.append(texto_item)
-            except Exception as e_item:
-                print(f"Aviso: Falha ao processar o item '{item_id}' do EPUB: {e_item}")
+        spine = getattr(livro, "spine", None)
+        if spine:
+            # spine típico: lista de tuplas (idref, linear)
+            iter_spine = [(idref, linear) for (idref, linear) in spine if isinstance(idref, str)]
+            for item_id, _ in tqdm(iter_spine, desc="Processando capítulos do EPUB"):
+                item = livro.get_item_with_id(item_id)
+                if item is None:
+                    continue
+                try:
+                    soup = BeautifulSoup(item.get_content(), 'html.parser')
+                    for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'a', 'img']):
+                        tag.decompose()
+                    texto_item = soup.get_text(separator='\n', strip=True)
+                    if texto_item:
+                        partes_texto.append(texto_item)
+                except Exception as e_item:
+                    print(f"Aviso: falha ao processar item '{item_id}': {e_item}")
+        else:
+            # Fallback: varre todos os documentos HTML do EPUB
+            print("⚠️ 'Spine' ausente. Lendo todos os documentos (ordem pode variar).")
+            for item in tqdm(livro.get_items_of_type(ITEM_DOCUMENT), desc="Processando capítulos do EPUB"):
+                try:
+                    soup = BeautifulSoup(item.get_content(), 'html.parser')
+                    for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'a', 'img']):
+                        tag.decompose()
+                    texto_item = soup.get_text(separator='\n', strip=True)
+                    if texto_item:
+                        partes_texto.append(texto_item)
+                except Exception as e_item:
+                    print(f"Aviso: falha ao processar um item do EPUB: {e_item}")
 
         return "\n\n".join(partes_texto)
     except Exception as e:
         print(f"❌ Erro ao processar EPUB: {e}")
         return ""
 
+# ----------------------------------------------------------------------
+# DOCX
+# ----------------------------------------------------------------------
+
 def extrair_texto_de_docx(caminho_docx: str) -> str:
-    """Extrai o conteúdo de texto de um arquivo DOCX."""
+    """Extrai o conteúdo de texto de um DOCX."""
     print(f"📖 Extraindo conteúdo de: {Path(caminho_docx).name}")
+    if Document is None:
+        print("❌ Dependência ausente: python-docx. Instale: pip install python-docx")
+        return ""
     try:
         doc = Document(caminho_docx)
         return "\n\n".join([para.text for para in doc.paragraphs if para.text])
     except Exception as e:
         print(f"❌ Erro ao processar DOCX: {e}")
         return ""
-

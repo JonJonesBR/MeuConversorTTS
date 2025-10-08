@@ -3,6 +3,8 @@
 Módulo para interações com o sistema operacional, como deteção de SO,
 verificação e instalação de dependências externas (FFmpeg, Poppler).
 """
+from __future__ import annotations
+
 import os
 import sys
 import platform
@@ -10,14 +12,12 @@ import subprocess
 import shutil
 import requests
 import zipfile
-
-# Importa as configurações do nosso arquivo config.py
-import config
+from typing import Dict, Any, List, Optional
 
 # Variável global para armazenar o SO detectado e evitar re-verificações
-SISTEMA_OPERACIONAL_INFO = {}
+SISTEMA_OPERACIONAL_INFO: Dict[str, Any] = {}
 
-def detectar_sistema():
+def detectar_sistema() -> Dict[str, Any]:
     """Detecta o sistema operacional e ambiente (ex: Termux)."""
     global SISTEMA_OPERACIONAL_INFO
     if SISTEMA_OPERACIONAL_INFO:
@@ -44,7 +44,7 @@ def detectar_sistema():
     SISTEMA_OPERACIONAL_INFO = sistema
     return sistema
 
-def _verificar_comando(comando_args, mensagem_sucesso, mensagem_falha, install_commands=None):
+def _verificar_comando(comando_args: List[str], mensagem_sucesso: str, mensagem_falha: str, install_commands: Optional[Dict[str, List[str]]] = None) -> bool:
     """Função genérica para verificar se um comando existe no sistema."""
     try:
         subprocess.run(comando_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
@@ -60,9 +60,11 @@ def _verificar_comando(comando_args, mensagem_sucesso, mensagem_falha, install_c
             if cmd_list:
                 print(f"   Sugestão de instalação: {' OR '.join(cmd_list)}")
                 if sistema_atual.get('termux') and 'poppler' in mensagem_falha.lower():
-                    if _instalar_dependencia_termux_auto('poppler'): return True
+                    if _instalar_dependencia_termux_auto('poppler'):
+                        return True
                 elif sistema_atual.get('windows') and 'poppler' in mensagem_falha.lower():
-                    if instalar_poppler_windows(): return True
+                    if instalar_poppler_windows():
+                        return True
         return False
 
 def _instalar_dependencia_termux_auto(pkg: str) -> bool:
@@ -77,10 +79,10 @@ def _instalar_dependencia_termux_auto(pkg: str) -> bool:
         print(f"Erro ao instalar pacote Termux '{pkg}': {e.stderr.decode() if e.stderr else e}")
     return False
 
-def instalar_poppler_windows():
+def instalar_poppler_windows() -> bool:
     """Baixa e tenta instalar o Poppler para Windows no diretório de dados do utilizador."""
     if shutil.which("pdftotext.exe"):
-        print("Poppler (pdftotext.exe) ja encontrado no PATH.")
+        print("Poppler (pdftotext.exe) já encontrado no PATH.")
         return True
     
     print("📦 Poppler (pdftotext.exe) não encontrado. Tentando instalar automaticamente...")
@@ -98,19 +100,22 @@ def instalar_poppler_windows():
             shutil.copyfileobj(response.raw, f)
 
         print("📦 Extraindo arquivos...")
-        archive_root_dir_name = next((item.split('/')[0] for item in zipfile.ZipFile(zip_path, 'r').namelist() if '/' in item), None)
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(install_dir)
         os.remove(zip_path)
 
-        bin_path_relative = os.path.join(archive_root_dir_name, 'Library', 'bin') if archive_root_dir_name else 'bin'
-        bin_path = os.path.join(install_dir, bin_path_relative)
+        # Encontrar a subpasta 'bin'
+        bin_path = None
+        for root, dirs, files in os.walk(install_dir):
+            if 'pdftotext.exe' in files:
+                bin_path = root
+                break
         
-        if not os.path.exists(os.path.join(bin_path, 'pdftotext.exe')):
-            print(f"Erro: 'pdftotext.exe' nao encontrado em {bin_path} apos extracao.")
+        if not bin_path:
+            print(f"Erro: 'pdftotext.exe' não encontrado após extração.")
             return False
 
-        print(f"Poppler extraido para: {bin_path}")
+        print(f"Poppler extraído para: {bin_path}")
         # Tenta adicionar ao PATH da sessão atual
         os.environ['PATH'] = f"{bin_path};{os.environ['PATH']}"
         if shutil.which("pdftotext.exe"):
@@ -125,13 +130,13 @@ def instalar_poppler_windows():
         print(f"Erro inesperado ao instalar Poppler: {e}")
         return False
 
-def verificar_dependencias_essenciais():
+def verificar_dependencias_essenciais() -> None:
     """Verifica se FFmpeg e Poppler estão instalados no sistema."""
     print("\n🔍 Verificando dependências essenciais...")
     detectar_sistema()
     
     _verificar_comando(
-        [config.FFMPEG_BIN, '-version'], "FFmpeg encontrado.",
+        ['ffmpeg', '-version'], "FFmpeg encontrado.",
         "FFmpeg não encontrado. Necessário para manipulação de áudio/vídeo.",
         install_commands={
             'termux': ['pkg install ffmpeg'],
@@ -152,4 +157,4 @@ def verificar_dependencias_essenciais():
             'windows': ['Tentativa de instalação automática será feita se necessário.']
         }
     )
-    print("Verificacao de dependencias concluida.")
+    print("Verificação de dependências concluída.")

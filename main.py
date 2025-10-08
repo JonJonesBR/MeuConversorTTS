@@ -68,7 +68,7 @@ async def main_loop():
             if escolha == 1:
                 await cli_ui.iniciar_conversao_tts()
             elif escolha == 2:
-                await cli_ui.iniciar_conversao_em_lote() # <- NOVA CHAMADA
+                await cli_ui.iniciar_conversao_em_lote()  # <- NOVA CHAMADA
             elif escolha == 3:
                 await cli_ui.testar_vozes_tts()
             elif escolha == 4:
@@ -82,7 +82,7 @@ async def main_loop():
             elif escolha == 0:
                 print("\n👋 Obrigado por usar o Conversor TTS Completo!")
                 break
-            elif escolha == -1: # Opção para quando o utilizador cancela a seleção
+            elif escolha == -1:  # Opção para quando o utilizador cancela a seleção
                 continue
 
         except asyncio.CancelledError:

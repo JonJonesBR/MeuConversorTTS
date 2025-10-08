@@ -61,8 +61,9 @@ async def obter_confirmacao(prompt: str, default_yes=True) -> bool:
             shared_state.CANCELAR_PROCESSAMENTO = True
             return False
 
-def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
-    """Exibe o banner do programa e um menu de opções."""
+# Substitua a função por esta versão assíncrona (se desejar padronizar o fluxo):
+async def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict) -> int:
+    """Exibe o banner do programa e um menu de opções (assíncrono)."""
     limpar_tela()
     largura_banner = 46
     titulo_app = "CONVERSOR TTS COMPLETO"
@@ -77,8 +78,7 @@ def exibir_banner_e_menu(titulo_menu: str, opcoes_menu: dict):
     num_opcoes = max([int(k) for k in opcoes_menu.keys() if k.isdigit()], default=0)
     for num, desc in opcoes_menu.items():
         print(f"{num}. {desc}")
-    return obter_opcao_numerica("Opção", num_opcoes, permitir_zero=('0' in opcoes_menu))
-
+    return await obter_opcao_numerica("Opção", num_opcoes, permitir_zero=('0' in opcoes_menu))
 
 # ================== LÓGICA DE NAVEGAÇÃO E SELEÇÃO ==================
 

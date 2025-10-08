@@ -4,6 +4,8 @@ Módulo de serviço para a conversão de texto em fala (TTS).
 Encapsula a lógica de divisão de texto e a comunicação com a
 biblioteca edge_tts.
 """
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 
@@ -12,25 +14,23 @@ import edge_tts
 # Importa de nossos outros módulos
 import config
 import shared_state
-import settings_manager  # <-- LINHA CORRIGIDA: Import que estava faltando
+import settings_manager  # <-- Import necessário para obter velocidade padrão
 
 def dividir_texto_para_tts(texto_processado: str) -> list[str]:
     """
     Divide o texto completo em blocos (chunks) otimizados para a API TTS.
 
-    Esta função foi reescrita para agrupar parágrafos de forma inteligente,
-    garantindo que cada bloco tenha um tamanho próximo ao limite máximo
-    permitido, mas sem quebrar frases ou palavras no meio. Isso resulta
-    em menos requisições e um áudio com fluxo mais natural.
+    Esta função agrupa parágrafos de forma inteligente, garantindo que cada
+    bloco tenha tamanho próximo ao limite máximo permitido, sem quebrar frases
+    ou palavras no meio, reduzindo chamadas e melhorando o fluxo do áudio.
     """
     print(f"Dividindo texto em chunks de ate {config.LIMITE_CARACTERES_CHUNK_TTS} caracteres...")
     
     paragrafos = texto_processado.split('\n\n')
-    
     if not paragrafos:
         return []
 
-    chunks_finais = []
+    chunks_finais: list[str] = []
     chunk_atual = ""
 
     for paragrafo in paragrafos:
@@ -41,6 +41,7 @@ def dividir_texto_para_tts(texto_processado: str) -> list[str]:
         if len(paragrafo) > config.LIMITE_CARACTERES_CHUNK_TTS:
             if chunk_atual:
                 chunks_finais.append(chunk_atual)
+            # Se um parágrafo isolado excede o limite, envia como está (evita truncar).
             chunks_finais.append(paragrafo)
             chunk_atual = ""
             continue
@@ -103,7 +104,7 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
     path_saida_obj.unlink(missing_ok=True)
     
     # Obtém a configuração de velocidade usando o settings_manager importado
-    velocidade_str = settings_manager.obter_configuracao('velocidade_padrao')
+    velocidade_str = settings_manager.obter_configuracao('velocidade_padrao') or "1.0"
     try:
         multiplicador = float(velocidade_str.replace('x', ''))
         rate_param = f"{int((multiplicador - 1.0) * 100):+d}%"
@@ -133,4 +134,3 @@ async def converter_chunk_tts(texto: str, voz: str, caminho_saida: str, indice: 
             await asyncio.sleep(2 * (tentativa + 1))
     
     return False
-

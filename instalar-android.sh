@@ -1,67 +1,38 @@
 #!/bin/bash
 # Script para automatizar a instalação do MeuConversorTTS no Termux
-
-# --- INÍCIO DO SCRIPT ---
-
-# Garante que o script pare se algum comando falhar
 set -e
 
-# Passo 1: Atualizar e instalar dependências do sistema
 echo ">>> (1/6) Atualizando pacotes do Termux..."
 pkg update -y && pkg upgrade -y
 
 echo ">>> (2/6) Instalando dependências do sistema (python, git, ffmpeg, poppler)..."
 pkg install -y python git ffmpeg poppler
 
-# Passo 2: Configurar o acesso ao armazenamento
 echo ">>> (3/6) Solicitando permissão de armazenamento..."
-echo "!!! IMPORTANTE: Antes de prosseguir, você precisa conceder permissão de armazenamento ao Termux."
-echo "Uma janela do Android vai aparecer. Clique em 'Permitir' para continuar."
-read -p "Digite 'sim' para conceder a permissão e continuar a instalação: " confirmacao
-if [ "$confirmacao" != "sim" ]; then
-    echo "Instalação cancelada. Execute o script novamente quando estiver pronto."
-    exit 1
-fi
+echo "!!! IMPORTANTE: Conceda permissão de armazenamento ao Termux quando solicitado."
+read -p "Digite 'sim' para conceder e continuar: " confirmacao
+[ "$confirmacao" = "sim" ] || { echo "Instalação cancelada."; exit 1; }
 termux-setup-storage
 
-# Passo 3: Baixar o projeto do GitHub
-# Primeiro, vamos para o diretório inicial para garantir que o projeto seja baixado no lugar certo.
 cd ~
 echo ">>> (4/6) Baixando o projeto do GitHub..."
-# Verifica se a pasta já existe para não dar erro
 if [ -d "MeuConversorTTS" ]; then
     echo "A pasta 'MeuConversorTTS' já existe. Pulando o download."
 else
     git clone https://github.com/JonJonesBR/MeuConversorTTS.git
 fi
-
-# Entra na pasta do projeto. Note que o nome da pasta é 'MeuConversorTTS'
 cd MeuConversorTTS
 
-# Passo 4: Configurar o ambiente Python
 echo ">>> (5/6) Criando e ativando o ambiente virtual..."
 python -m venv venv
 
 echo ">>> (6/6) Instalando as dependências Python do projeto..."
-# Ativamos o ambiente e instalamos os pacotes dentro do próprio script
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Mensagem final
 echo ""
 echo "--- INSTALAÇÃO CONCLUÍDA! ---"
-echo ""
-echo "Para começar a usar, siga os próximos passos:"
-echo "1. Acesse a pasta do programa com o comando:"
-echo "   cd MeuConversorTTS"
-echo "2.  Depois acesse o ambiente virtual com o comando:"
-echo "   source venv/bin/activate"
-echo "3. Por fim, execute o programa principal com:"
-echo "   python main.py"
-echo ""
-
-<<<<<<< HEAD
+echo "1) cd MeuConversorTTS"
+echo "2) source venv/bin/activate"
+echo "3) python main.py"
 # --- FIM DO SCRIPT ---
-=======
-# --- FIM DO SCRIPT ---
->>>>>>> bb19449059105991693c172edf8db34073a419fe

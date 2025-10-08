@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Script de limpeza e formatação de texto para TTS (REV 3)
+Script de limpeza e formatação de texto para TTS (REV 4.2)
 
-- Corrige chamada para: _remover_marcas_dagua_e_rodapes(texto)
-- Remoção de marcas d'água/rodapés é linha a linha (segura).
+- EPUB: remove marcadores de numeração de página (pagebreak/pagenum/pageno, etc.)
+         antes de extrair o texto; 'a' genéricos agora são "unwrap" (preserva texto).
+- Remoção linha a linha: suprime 'Página 12', 'Pág. 12', 'Page 12' e 'Página 12 de 300'.
+- Pontuação: evita inserir espaço após vírgula/ponto entre dígitos (1,5 / 1.000).
+- Expansão numérica segura (sem lookbehind variável) com checagem de contexto.
 - Imports opcionais protegidos (sem avisos do Pylance).
-- Expansões de abreviações com regex restritivas.
-- Preserva travessões (—) e faz limpeza de pontuação cirúrgica.
-- Normalização robusta de cabeçalhos de capítulos.
+- Remoção de marcas d'água/rodapés linha a linha (segura).
+- Preserva travessões (—) e normaliza capítulos.
 - Logs de contagem de caracteres por etapa.
 """
 
@@ -18,7 +20,7 @@ import argparse
 import re
 import logging
 import unicodedata
-from typing import Optional, Any, Iterable
+from typing import Optional, Any, Iterable, List
 
 # ----------------------------------------------------------------------
 # Imports opcionais (sempre definidos para agradar ao Pylance)
@@ -90,6 +92,55 @@ def extract_from_docx(filepath: str) -> str:
         logging.error(f"Erro ao processar o DOCX '{filepath}': {e}")
         return ""
 
+# --------- Utilitários de limpeza de EPUB (antes do get_text) ---------
+
+_RE_CLASS_PAGENUM = re.compile(r'\b(page\s?num|pageno|pagebreak|page-number)\b', re.I)
+_RE_ID_PAGE = re.compile(r'^(page|pg|p)_?\d+$', re.I)
+
+def _remover_marcadores_pagina_epub(soup: Any) -> None:
+    """
+    Remove do DOM elementos que representam quebras/numeração de página:
+    - Qualquer tag com atributo 'epub:type' contendo 'pagebreak'
+    - Qualquer tag com 'role' == 'doc-pagebreak'
+    - Classes/id típicos: 'pagenum', 'pageno', 'pagebreak', 'page-number'
+    - Âncoras/spans/divs que carregam apenas números ou 'Página X' como texto curto
+    - Para <a> genéricos, faz 'unwrap' (preserva texto) em vez de 'decompose'
+    """
+    if BeautifulSoup is None:
+        return
+
+    # 1) Remover por atributos semânticos (EPUB 3)
+    for tag in soup.find_all(lambda t: t.has_attr('epub:type') and 'pagebreak' in str(t.get('epub:type', '')).lower()):
+        tag.decompose()
+    for tag in soup.find_all(lambda t: t.has_attr('role') and str(t.get('role', '')).lower() == 'doc-pagebreak'):
+        tag.decompose()
+
+    # 2) Remover por classe/id típicos  (✔️ sem any() e com bool() em Match)
+    for tag in soup.find_all(lambda t: t.has_attr('class') and bool(_RE_CLASS_PAGENUM.search(' '.join(t.get('class', []))))):
+        tag.decompose()
+    for tag in soup.find_all(lambda t: t.has_attr('id') and bool(_RE_ID_PAGE.match(str(t.get('id', '')) or ''))):
+        tag.decompose()
+
+    # 3) Processar <a>: se for marcador de página, remove; do contrário, unwrap
+    for a in soup.find_all('a'):
+        if (
+            (a.has_attr('epub:type') and 'pagebreak' in str(a.get('epub:type', '')).lower()) or
+            (a.has_attr('role') and str(a.get('role', '')).lower() == 'doc-pagebreak') or
+            (a.has_attr('class') and bool(_RE_CLASS_PAGENUM.search(' '.join(a.get('class', []))))) or
+            (a.has_attr('id') and bool(_RE_ID_PAGE.match(str(a.get('id', '')) or '')))
+        ):
+            a.decompose()
+        else:
+            a.unwrap()
+
+    # 4) Spans/Divs curtos com apenas número de página no texto
+    POSSIVEIS = ('span', 'div')
+    for tag in soup.find_all(POSSIVEIS):
+        txt = tag.get_text(strip=True)
+        # Apenas um número, ou "Página 12" / "Pág. 12" / "Page 12" (curtos, típicos de cabeçalho/rodapé)
+        if re.fullmatch(r'\d{1,4}', txt) or re.fullmatch(r'(Página|Pág\.?|Page)\s*\d{1,4}(\s*de\s*\d{1,4})?', txt, flags=re.I):
+            tag.decompose()
+
 def extract_from_epub(filepath: str) -> str:
     if epub is None or ITEM_DOCUMENT is None or BeautifulSoup is None:
         logging.error("Dependências ausentes para EPUB: ebooklib e/ou beautifulsoup4. "
@@ -97,11 +148,35 @@ def extract_from_epub(filepath: str) -> str:
         return ""
     try:
         book = epub.read_epub(filepath)  # type: ignore
-        content = []
-        for item in book.get_items_of_type(ITEM_DOCUMENT):  # type: ignore
-            soup = BeautifulSoup(item.get_content(), 'html.parser')  # type: ignore
-            content.append(soup.get_text(separator='\n', strip=True))
-        return "\n\n".join(content)
+        partes: List[str] = []
+
+        spine = getattr(book, "spine", None)
+        if spine:
+            # spine típico: lista de tuplas (idref, linear)
+            iter_spine = [(idref, linear) for (idref, linear) in spine if isinstance(idref, str)]
+            for item_id, _ in iter_spine:
+                item = book.get_item_with_id(item_id)
+                if not item:
+                    continue
+                soup = BeautifulSoup(item.get_content(), 'html.parser')  # type: ignore
+                for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'img']):
+                    tag.decompose()
+                _remover_marcadores_pagina_epub(soup)
+                txt = soup.get_text(separator='\n', strip=True)
+                if txt:
+                    partes.append(txt)
+        else:
+            # Fallback: varre todos os documentos HTML do EPUB
+            for item in book.get_items_of_type(ITEM_DOCUMENT):  # type: ignore
+                soup = BeautifulSoup(item.get_content(), 'html.parser')  # type: ignore
+                for tag in soup(['nav', 'header', 'footer', 'style', 'script', 'figure', 'aside', 'img']):
+                    tag.decompose()
+                _remover_marcadores_pagina_epub(soup)
+                txt = soup.get_text(separator='\n', strip=True)
+                if txt:
+                    partes.append(txt)
+
+        return "\n\n".join(partes)
     except Exception as e:
         logging.error(f"Erro ao processar o EPUB '{filepath}': {e}")
         return ""
@@ -167,6 +242,7 @@ def _remover_marcas_dagua_e_rodapes(texto: str) -> str:
     Remove linhas de propaganda/rodapé com segurança:
     - Opera linha a linha (somente MULTILINE).
     - Usa [^\\n]* em vez de .* para não atravessar parágrafos.
+    - Agora também remove 'Página 12', 'Pág. 12', 'Page 12' e 'Página 12 de 300'.
     """
     padroes = [
         re.compile(r'(?im)^[^\n]*novidade[^\n]*para você![^\n]*$'),  # ex.: "Sempre uma novidade para você!"
@@ -174,6 +250,7 @@ def _remover_marcas_dagua_e_rodapes(texto: str) -> str:
         re.compile(r'(?im)^\s*Esse livro é protegido pelas leis [^\n]*$'),
         re.compile(r'(?m)^\s*-+\s*\d+\s*-+\s*$'),     # linhas tipo "---- 12 ----"
         re.compile(r'(?m)^\s*\d+\s*$'),               # número de página isolado
+        re.compile(r'(?im)^\s*(Página|Pág\.?|Page)\s*\d{1,5}(\s*de\s*\d{1,5})?\s*$'),  # Página 12 / Pág. 12 / Page 12 [de 300]
     ]
     linhas = texto.splitlines()
     filtradas = []
@@ -217,14 +294,23 @@ def _limpar_pontuacao_e_espacos(texto: str) -> str:
     t = texto
     # Elipses longas → "..."
     t = re.sub(r'\.{3,}', '...', t)
-    # Espaço antes de pontuação comum → remove
+
+    # Remove espaço antes de pontuação comum
     t = re.sub(r'\s+([,.;:!?])', r'\1', t)
-    # Garante espaço após pontuação (exceto se já houver delimitadores)
-    t = re.sub(r'([,.;:!?])([^\s"\'\)\]\}])', r'\1 \2', t)
+
+    # Garante espaço após ; : ! ? quando necessário
+    t = re.sub(r'([;:!?])([^\s"\'\)\]\}])', r'\1 \2', t)
+
+    # Para vírgula e ponto, evita inserir espaço quando estão entre dígitos (ex.: 1,5 / 1.000)
+    t = re.sub(r'(?<!\d)(,)([^\s"\'\)\]\}\d])', r'\1 \2', t)
+    t = re.sub(r'(?<!\d)(\.)([^\s"\'\)\]\}\d])', r'\1 \2', t)
+
     # Travessão de diálogo: assegura espaço depois se vier palavra
     t = re.sub(r'—(?=\S)', '— ', t)
+
     # Espaços múltiplos
     t = re.sub(r'[ \t]{2,}', ' ', t)
+
     # Linhas em branco em bloco: no máximo uma
     t = re.sub(r'\n{3,}', '\n\n', t)
     return t.strip()
@@ -255,7 +341,7 @@ def formatar_texto_para_tts(texto_bruto: Any) -> str:
     texto = _normalizar_unicode(texto_in)
     _log_len("Após normalização unicode", texto)
 
-    # 2) Remoção segura de marcas/rodapés (CORRETO)
+    # 2) Remoção segura de marcas/rodapés
     texto = _remover_marcas_dagua_e_rodapes(texto)
     _log_len("Após remoção de marcas/rodapés", texto)
 
@@ -280,8 +366,17 @@ def formatar_texto_para_tts(texto_bruto: Any) -> str:
     def expandir_numeros(seg: str) -> str:
         if num2words is None:
             return seg
+
+        # Palavras que desabilitam expansão quando aparecem imediatamente antes do número
+        NAO_EXPANDIR_ANTES = ("capítulo ", "capitulo ", "página ", "pagina ", "número ", "numero ")
+
         def _cardinal(m: re.Match) -> str:
             num = m.group(0)
+            ini = m.start()
+            # Janela de 20 caracteres antes do número para checagem de contexto
+            prefixo = seg[max(0, ini - 20):ini].lower()
+            if any(prefixo.endswith(w) for w in NAO_EXPANDIR_ANTES):
+                return num
             try:
                 val = int(num)
                 # Evita expandir ANOS (1900–2100) e números com >4 dígitos
@@ -290,8 +385,9 @@ def formatar_texto_para_tts(texto_bruto: Any) -> str:
                 return num2words(val, lang='pt_BR')  # type: ignore
             except Exception:
                 return num
-        # Evita expandir após marcadores específicos
-        padrao = re.compile(r'(?<!Capítulo\s)(?<!página\s)(?<!número\s)\b\d+\b')
+
+        # Casa números "isolados", evitando decimais e milhares (1,5 / 1.000)
+        padrao = re.compile(r'(?<!\d[.,])\b\d+\b(?![.,]\d)')
         return padrao.sub(_cardinal, seg)
 
     texto = expandir_numeros(texto)

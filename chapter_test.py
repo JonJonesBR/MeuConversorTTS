@@ -14,24 +14,37 @@ def test_chapter_regex():
         "Capítulo 1 - Introdução",
         "=======================",
         "Capítulo 2: O Menino que Sobreviveu",
-        "=================================="
+        "capítulo 3 O vidro sumiu",
+        "CAPITULO 4 A carta",
+        "Capítulo Cinco - A fuga",
+        "Capítulo Seis",
+        "Capítulo VII - Algo em Romanos",
+        "Capitulo oito, uma variação",
+        "Capítulo 9—Travessão mal colado",
+        "Capítulo 10— Travessão correto",
+        "Outro texto aleatório sem capítulo",
+        "CAPÍTULO ONZE O título em maiúsculas",
+        "Capítulo doze: Em minúsculas",
+        "Capitulo TREZE TÍTULO",
+        "capítulo quatorze: título testado",
+        "capítulo quinze título sem pontuação",
+        "Capítulo dezesseis - título com hífen",
+        "Capítulo DEZESSETE: outro título",
     ]
     
-    print("Testando expressões regulares para títulos de capítulo:")
-    print("=" * 60)
+    # Padrões de detecção diferentes
+    chapter_pattern1 = r'^\s*Cap[ií]tulo\s+(\d+|[IVXLCDM]+)\s*[—:-]?\s*(.*)$'
+    chapter_pattern2 = r'^\s*CAP[IÍ]TULO\s+([A-ZÇÃÕÉÍÁÚÂÊÔ]+|\d+)\s*(.*)$'
+    chapter_pattern3 = r'^\s*cap[ií]tulo\s+([a-zçãõéíáúâêô]+|\d+)\s*[:—-]?\s*(.*)$'
     
-    # Teste com a regex atual
-    chapter_pattern1 = r'^\s*-+\s*CAPÍTULO\s+(.+?)\s*-+\s*$'
-    chapter_pattern2 = r'^\s*CAPÍTULO\s*(\w+)\s*[-:]\s*(.+)$'
-    chapter_pattern3 = r'^\s*CAPÍTULO\s*(\w+)\s+(.+)$'
-    
-    for i, line in enumerate(test_lines):
-        print(f"Linha {i+1}: {repr(line)}")
+    print("Testando linhas:")
+    for line in test_lines:
+        print(f"-> {line}")
         
         # Testa padrão 1
         match1 = re.search(chapter_pattern1, line, re.MULTILINE | re.IGNORECASE)
         if match1:
-            print(f"  Padrão 1 match: {repr(match1.group(1))}")
+            print(f"  Padrão 1 match: grupo1={repr(match1.group(1))}, grupo2={repr(match1.group(2))}")
         else:
             print(f"  Padrão 1: Nenhum match")
             
