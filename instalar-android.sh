@@ -42,16 +42,9 @@ source venv/bin/activate
 echo ">>> (8/8) Instalando dependências Python do projeto..."
 pip install --upgrade pip setuptools wheel
 
-# ⚠️ REMOVIDO: pip install pypdfium2 (incompatível com Termux)
-# O projeto deve funcionar com pdfplumber + poppler (já instalados)
-
-# Instala as dependências restantes
-# Se o requirements.txt contiver 'pypdfium2', a instalação FALHARÁ.
-# Recomenda-se editá-lo ou substituí-lo.
-if [ -f "requirements.txt" ]; then
-    echo "Instalando dependências do requirements.txt..."
-    # Tenta instalar, mas ignora pypdfium2 se presente (opcional: filtrar)
-    pip install -r requirements.txt
+# Instala requirements.txt IGNORANDO pypdfium2 (mesmo que esteja presente)
+echo "Instalando dependências do requirements.txt (ignorando pypdfium2 se existir)..."
+pip install -r <(grep -v "pypdfium2" requirements.txt)
 else
     echo "Arquivo requirements.txt não encontrado. Instalando dependências mínimas..."
     pip install pdfplumber EbookLib pillow
