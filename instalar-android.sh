@@ -1,4 +1,4 @@
-#!/bin/bash
+echo/bash
 # Script para automatizar a instalação do MeuConversorTTS no Termux (Android)
 # Compatível com pdfplumber, EbookLib e Pillow
 # Versão totalmente adaptada para o Termux (sem pypdfium2)
@@ -39,16 +39,20 @@ echo ">>> (7/8) Criando e ativando o ambiente virtual..."
 python -m venv venv
 source venv/bin/activate
 
-echo ">>> (8/8) Instalando dependências Python do projeto..."
+# >>> (8/8) Instalando dependências Python do projeto de forma controlada...
 pip install --upgrade pip setuptools wheel
 
-# Instala requirements.txt IGNORANDO pypdfium2 (mesmo que esteja presente)
-echo "Instalando dependências do requirements.txt (ignorando pypdfium2 se existir)..."
-pip install -r <(grep -v "pypdfium2" requirements.txt)
-else
-    echo "Arquivo requirements.txt não encontrado. Instalando dependências mínimas..."
-    pip install pdfplumber EbookLib pillow
-fi
+# Cria um arquivo de requisitos temporário sem o pdfplumber
+echo "Instalando dependências principais (exceto pdfplumber)..."
+grep -v "pdfplumber" requirements.txt > requirements-safe.txt
+pip install -r requirements-safe.txt
+
+# Instala o pdfplumber isoladamente, sem que ele puxe outras dependências
+echo "Instalando pdfplumber de forma isolada..."
+pip install --no-deps "pdfplumber>=0.11.0"
+
+# Limpa o arquivo temporário
+rm requirements-safe.txt
 
 echo ""
 echo "--- INSTALAÇÃO CONCLUÍDA COM SUCESSO! ---"
