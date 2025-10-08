@@ -13,7 +13,8 @@ echo ">>> (3/8) Instalando dependências gráficas para Pillow/pdfplumber..."
 pkg install -y libjpeg-turbo zlib freetype libpng
 
 echo ">>> (4/8) Instalando dependências XML necessárias para EbookLib/lxml..."
-pkg install -y libxml2 libxslt
+pkg install -y libxml2 libxslt libxml2-dev libxslt-dev clang python-dev
+pip install lxml
 
 echo ">>> (5/8) Solicitando permissão de armazenamento..."
 echo "!!! IMPORTANTE: Conceda permissão de armazenamento ao Termux quando solicitado."
