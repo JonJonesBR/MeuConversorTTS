@@ -37,7 +37,8 @@ source venv/bin/activate
 
 echo ">>> (8/8) Instalando dependências Python do projeto..."
 pip install --upgrade pip setuptools wheel
-pip install --only-binary=:all: lxml
+pkg install -y libxml2 libxslt libxml2-dev libxslt-dev clang python-dev
+pip install lxml
 pip install -r requirements.txt
 
 echo ""
