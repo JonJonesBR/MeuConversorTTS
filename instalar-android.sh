@@ -7,7 +7,8 @@ echo ">>> (1/8) Atualizando pacotes do Termux..."
 pkg update -y && pkg upgrade -y
 
 echo ">>> (2/8) Instalando dependências principais (python, git, ffmpeg, poppler)..."
-pkg install -y python git ffmpeg poppler
+# Adicionado 'pdfium' para garantir a biblioteca nativa compatível com o Termux
+pkg install -y python git ffmpeg poppler pdfium
 
 echo ">>> (3/8) Instalando dependências gráficas para Pillow/pdfplumber..."
 pkg install -y libjpeg-turbo zlib freetype libpng
@@ -37,7 +38,8 @@ source venv/bin/activate
 
 echo ">>> (8/8) Instalando dependências Python do projeto..."
 pip install --upgrade pip setuptools wheel
-pip install pypdfium2 # Instala a versão pré-compilada
+# Instalando sem '[bindings]' para usar a biblioteca do sistema ('pkg install pdfium')
+pip install pypdfium2
 pip install -r requirements.txt # Instala o restante das dependências
 
 echo ""
