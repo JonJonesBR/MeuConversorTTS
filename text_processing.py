@@ -1,16 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Script de limpeza e formatação de texto para TTS (REV 4.2)
+Script de limpeza e formatação de texto para TTS (REV 4.2, modificado)
 
-- EPUB: remove marcadores de numeração de página (pagebreak/pagenum/pageno, etc.)
-         antes de extrair o texto; 'a' genéricos agora são "unwrap" (preserva texto).
-- Remoção linha a linha: suprime 'Página 12', 'Pág. 12', 'Page 12' e 'Página 12 de 300'.
-- Pontuação: evita inserir espaço após vírgula/ponto entre dígitos (1,5 / 1.000).
-- Expansão numérica segura (sem lookbehind variável) com checagem de contexto.
-- Imports opcionais protegidos (sem avisos do Pylance).
-- Remoção de marcas d'água/rodapés linha a linha (segura).
-- Preserva travessões (—) e normaliza capítulos.
-- Logs de contagem de caracteres por etapa.
+- Substituído PyMuPDF (fitz) por pdfplumber para extração de texto de PDFs.
+- pdfplumber é mais leve, compatível com Termux e não requer compilação nativa.
 """
 
 from __future__ import annotations
@@ -23,20 +16,14 @@ import unicodedata
 from typing import Optional, Any, Iterable, List
 
 # ----------------------------------------------------------------------
-# Imports opcionais (sempre definidos para agradar ao Pylance)
+# Imports opcionais
 # ----------------------------------------------------------------------
-fitz: Optional[Any] = None
+import pdfplumber
 docx: Optional[Any] = None
 epub: Optional[Any] = None
 ITEM_DOCUMENT: Optional[Any] = None
 BeautifulSoup: Optional[Any] = None
 num2words: Optional[Any] = None
-
-try:
-    import fitz as _fitz  # PyMuPDF
-    fitz = _fitz
-except Exception:
-    pass
 
 try:
     import docx as _docx  # python-docx
@@ -71,15 +58,22 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 # ================== EXTRAÇÃO ==================
 
 def extract_from_pdf(filepath: str) -> str:
-    if fitz is None:
-        logging.error("Dependência ausente: PyMuPDF (fitz). Instale com: pip install PyMuPDF")
-        return ""
+    """
+    Extrai texto de um arquivo PDF usando pdfplumber.
+    Retorna uma string com o texto concatenado de todas as páginas.
+    """
     try:
-        with fitz.open(filepath) as doc:  # type: ignore
-            return "".join(page.get_text() for page in doc)
+        text = ""
+        with pdfplumber.open(filepath) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                text += page_text + "\n"
+        return text.strip()
     except Exception as e:
-        logging.error(f"Erro ao processar o PDF '{filepath}': {e}")
+        logging.error(f"Erro ao extrair texto do PDF '{filepath}': {e}")
         return ""
+
+# As demais funções do script permanecem inalteradas.
 
 def extract_from_docx(filepath: str) -> str:
     if docx is None:
