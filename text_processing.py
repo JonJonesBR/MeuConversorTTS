@@ -18,7 +18,7 @@ from typing import Optional, Any, Iterable, List
 # ----------------------------------------------------------------------
 # Imports opcionais
 # ----------------------------------------------------------------------
-import pdfplumber
+# import pdfplumber  <-- REMOVIDO
 docx: Optional[Any] = None
 epub: Optional[Any] = None
 ITEM_DOCUMENT: Optional[Any] = None
@@ -57,21 +57,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 # ================== EXTRAÇÃO ==================
 
-def extract_from_pdf(filepath: str) -> str:
-    """
-    Extrai texto de um arquivo PDF usando pdfplumber.
-    Retorna uma string com o texto concatenado de todas as páginas.
-    """
-    try:
-        text = ""
-        with pdfplumber.open(filepath) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text() or ""
-                text += page_text + "\n"
-        return text.strip()
-    except Exception as e:
-        logging.error(f"Erro ao extrair texto do PDF '{filepath}': {e}")
-        return ""
+# Bloco da função extract_from_pdf REMOVIDO
 
 # As demais funções do script permanecem inalteradas.
 
@@ -387,7 +373,7 @@ def formatar_texto_para_tts(texto_bruto: Any) -> str:
     texto = expandir_numeros(texto)
     _log_len("Após expansão (opcional) de números", texto)
 
-    # 8) Limpeza fina de pontuação/espaços
+    # 8) Limpeza fina de pontuação/espaços
     texto = _limpar_pontuacao_e_espacos(texto)
     _log_len("Final", texto)
 
@@ -412,7 +398,7 @@ def main():
 
     _, ext = os.path.splitext(input_path.lower())
     extractors = {
-        '.pdf': extract_from_pdf,
+        #'.pdf': extract_from_pdf, # REMOVIDO
         '.docx': extract_from_docx,
         '.epub': extract_from_epub,
         '.txt': extract_from_txt
