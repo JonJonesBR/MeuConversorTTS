@@ -561,7 +561,11 @@ async def _processar_melhoria_de_audio_video(caminho_arquivo_entrada: str):
         if sucesso and caminho_arquivo_saida:
             print(f"\n✅ Operação concluída! Ficheiro salvo como: {caminho_arquivo_saida.name}")
         else:
-            print("\n❌ Falha ao aplicar a melhoria. Verifique se o FFmpeg está instalado e se o ficheiro é válido.")
+            # Verificar se o FFmpeg está disponível antes de aplicar melhorias
+            if not ffmpeg_utils.verificar_ffmpeg():
+                print(f"\n❌ Falha ao aplicar a melhoria. {ffmpeg_utils.obter_mensagem_ffmpeg_nao_encontrado()}")
+            else:
+                print("\n❌ Falha ao aplicar a melhoria. Verifique se o ficheiro é válido.")
 
         if not await obter_confirmacao("\nDeseja aplicar outra melhoria a este mesmo ficheiro original?", default_yes=False):
             break

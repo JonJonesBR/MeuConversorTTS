@@ -130,26 +130,129 @@ def instalar_poppler_windows() -> bool:
         print(f"Erro inesperado ao instalar Poppler: {e}")
         return False
 
+def instalar_ffmpeg_windows() -> bool:
+    """Baixa e tenta instalar o FFmpeg para Windows no diretório de dados do utilizador."""
+    import requests
+    import zipfile
+    
+    # Verificar se o FFmpeg já está no PATH
+    if shutil.which("ffmpeg.exe") or shutil.which("ffmpeg"):
+        print("FFmpeg ja encontrado no PATH.")
+        return True
+    
+    print("FFmpeg nao encontrado. Tentando instalar automaticamente...")
+    try:
+        # Primeiro tenta com o URL do ZIP
+        ffmpeg_urls = [
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+            "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1-essentials_build.zip",
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.zip",
+            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.zip",
+            # Se os links acima não funcionarem, tentar um link alternativo
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n5.1-latest-win64-gpl-5.1.zip"
+        ]
+        
+        ffmpeg_url = None
+        for url in ffmpeg_urls:
+            try:
+                response_check = requests.head(url)
+                if response_check.status_code < 400:
+                    ffmpeg_url = url
+                    print(f"Usando URL: {ffmpeg_url}")
+                    break
+            except:
+                continue
+        
+        if not ffmpeg_url:
+            print("Nenhum URL de FFmpeg valido encontrado.")
+            return False
+        
+        # Diretório de instalação
+        install_dir_base = os.environ.get('LOCALAPPDATA', os.path.join(os.path.expanduser("~"), "AppData", "Local"))
+        install_dir = os.path.join(install_dir_base, 'FFmpeg')
+        os.makedirs(install_dir, exist_ok=True)
+        
+        print("Baixando FFmpeg...")
+        response = requests.get(ffmpeg_url, stream=True)
+        response.raise_for_status()
+        
+        # Criar arquivo temporário para o download
+        zip_path = os.path.join(install_dir, "ffmpeg.zip")
+        with open(zip_path, 'wb') as f:
+            shutil.copyfileobj(response.raw, f)
+
+        print("Extraindo arquivos...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # Lista todos os arquivos no ZIP para encontrar a estrutura correta
+            all_files = zip_ref.namelist()
+            
+            # Encontrar a pasta principal que contém a estrutura bin/
+            bin_files = [f for f in all_files if 'bin/ffmpeg.exe' in f or 'bin/ffprobe.exe' in f or 'bin/ffplay.exe' in f]
+            
+            if bin_files:
+                # Extrair a pasta que contém os executáveis
+                root_folder = bin_files[0].split('/')[0]  # Obter a pasta raiz
+                extract_to = os.path.join(install_dir, "extracted")
+                os.makedirs(extract_to, exist_ok=True)
+                
+                # Extrair todo o conteúdo
+                zip_ref.extractall(extract_to)
+                
+                # Encontrar a pasta bin e copiar os executáveis para o diretório de instalação
+                extracted_root = os.path.join(extract_to, root_folder)
+                bin_path = os.path.join(extracted_root, "bin")
+                
+                if os.path.exists(bin_path):
+                    # Copiar os arquivos da pasta bin para o diretório de instalação
+                    for file in os.listdir(bin_path):
+                        if file.lower().endswith(('.exe', '.dll')):
+                            src_path = os.path.join(bin_path, file)
+                            dst_path = os.path.join(install_dir, file)
+                            shutil.copy2(src_path, dst_path)
+                
+                # Remover a pasta temporária de extração
+                shutil.rmtree(extract_to)
+            else:
+                # Se não encontrar a estrutura esperada, extrai tudo e tenta encontrar os arquivos
+                zip_ref.extractall(install_dir)
+                # Procura recursivamente os executáveis
+                for root, dirs, files in os.walk(install_dir):
+                    for file in files:
+                        if file.lower() in ["ffmpeg.exe", "ffprobe.exe", "ffplay.exe"]:
+                            # Copia o arquivo para o diretório de instalação se ainda não estiver lá
+                            src_path = os.path.join(root, file)
+                            dst_path = os.path.join(install_dir, file)
+                            if not os.path.exists(dst_path):
+                                shutil.copy2(src_path, dst_path)
+        
+        # Remover o arquivo ZIP após extração
+        os.remove(zip_path)
+        
+        # Adicionar ao PATH da sessão atual
+        os.environ['PATH'] = f"{install_dir};{os.environ['PATH']}"
+        
+        # Verificar se os executáveis agora estão acessíveis
+        ffmpeg_found = shutil.which("ffmpeg.exe") or shutil.which("ffmpeg")
+        ffprobe_found = shutil.which("ffprobe.exe") or shutil.which("ffprobe")
+        
+        if ffmpeg_found and ffprobe_found:
+            print("FFmpeg agora esta acessivel nesta sessao.")
+            print("   OBS: Pode ser necessario adicionar o diretorio ao PATH do Windows manualmente para uso futuro.")
+            return True
+        else:
+            print(f"FFmpeg instalado, mas nao esta no PATH. Adicione manualmente: {install_dir}")
+            return False
+            
+    except Exception as e:
+        print(f"Erro inesperado ao instalar FFmpeg: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def verificar_dependencias_essenciais() -> None:
-    """Verifica se FFmpeg e Poppler estão instalados no sistema."""
+    """Verifica se Poppler está instalado no sistema (FFmpeg verificado separadamente)."""
     print("\n🔍 Verificando dependências essenciais...")
     detectar_sistema()
-    
-    _verificar_comando(
-        ['ffmpeg', '-version'], "FFmpeg encontrado.",
-        "FFmpeg não encontrado. Necessário para manipulação de áudio/vídeo.",
-        install_commands={
-            'termux': ['pkg install ffmpeg'],
-            'linux': ['sudo apt install ffmpeg', 'sudo yum install ffmpeg'],
-            'macos': ['brew install ffmpeg'],
-            'windows': [
-                '1. Baixe em https://ffmpeg.org/download.html',
-                '2. Extraia o conteúdo em uma pasta (ex: C:\\ffmpeg)',
-                '3. Adicione o caminho "C:\\ffmpeg\\bin" ao PATH do sistema',
-                '4. Reinicie o terminal para aplicar as alterações'
-            ]
-        }
-    )
     
     pdftotext_cmd = "pdftotext.exe" if detectar_sistema().get('windows') else "pdftotext"
     _verificar_comando(

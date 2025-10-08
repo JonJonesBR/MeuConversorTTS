@@ -134,6 +134,13 @@ if __name__ == "__main__":
     system_utils.verificar_dependencias_essenciais()
     verificar_instalar_dependencias()
     verificar_permissoes_termux()
+    
+    # Verificar se o FFmpeg está instalado
+    from ffmpeg_utils import verificar_ffmpeg, obter_mensagem_ffmpeg_nao_encontrado
+    if not verificar_ffmpeg():
+        print(obter_mensagem_ffmpeg_nao_encontrado())
+        print("\n⚠️ AVISO: O programa pode continuar funcionando, mas algumas funções como melhorias de áudio/vídeo e geração de vídeo não estarão disponíveis.")
+        input("Pressione ENTER para continuar mesmo assim...")
     # ------------------------------------
 
     try:

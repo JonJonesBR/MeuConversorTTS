@@ -22,6 +22,7 @@ from tqdm import tqdm
 
 # Importar a função limpar_nome_arquivo de file_handlers
 from file_handlers import limpar_nome_arquivo
+import system_utils
 
 # ----------------------------------------------------------------------
 # Helpers básicos
@@ -75,8 +76,54 @@ def _executar_comando_simples(comando: List[str]) -> bool:
         return True
 
     except FileNotFoundError:
-        print("X FFmpeg/FFprobe nao encontrado no PATH.")
-        return False
+        from system_utils import instalar_ffmpeg_windows
+        sistema = system_utils.detectar_sistema()
+        if sistema['windows']:
+            if instalar_ffmpeg_windows():
+                # Tenta executar novamente após a instalação
+                try:
+                    flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                    process = subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                               universal_newlines=True, encoding='utf-8', errors='ignore',
+                                               creationflags=flags)
+                    
+                    stderr_output = ""
+                    activity_indicator_time = time.monotonic()
+                    
+                    while process.poll() is None:
+                        current_time_loop = time.monotonic()
+                        if current_time_loop - activity_indicator_time > 1.0:
+                            sys.stdout.write(".")
+                            sys.stdout.flush()
+                            activity_indicator_time = current_time_loop
+                        time.sleep(0.1)
+
+                    print()
+
+                    stdout_final, stderr_final = process.communicate()
+                    stderr_output += stderr_final
+                    
+                    return_code = process.returncode
+
+                    if return_code != 0:
+                        print(f"\nX Erro durante execucao do comando FFmpeg (codigo {return_code}):")
+                        error_lines = stderr_output.strip().splitlines()
+                        relevant_errors = [ln for ln in error_lines[-20:] if 'error' in ln.lower() or ln.strip().startswith('[') or "failed" in ln.lower()]
+                        if not relevant_errors: relevant_errors = error_lines[-10:]
+                        print("\n".join(f"   {line}" for line in relevant_errors))
+                        return False
+
+                    print(f"OK Comando FFmpeg concluido com sucesso.")
+                    return True
+                except FileNotFoundError:
+                    print(obter_mensagem_ffmpeg_nao_encontrado())
+                    return False
+            else:
+                print(obter_mensagem_ffmpeg_nao_encontrado())
+                return False
+        else:
+            print(obter_mensagem_ffmpeg_nao_encontrado())
+            return False
     except Exception as e:
         print(f"X Erro inesperado durante execucao do comando FFmpeg: {str(e)}")
         import traceback
@@ -120,8 +167,73 @@ def _executar_com_progresso(comando: List[str], duracao_total: float, desc: str)
             creationflags=flags
         )
     except FileNotFoundError:
-        print("❌ FFmpeg não encontrado no PATH.")
-        return False
+        from system_utils import instalar_ffmpeg_windows
+        sistema = system_utils.detectar_sistema()
+        if sistema['windows']:
+            if instalar_ffmpeg_windows():
+                # Tenta executar novamente após a instalação
+                flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                try:
+                    processo = subprocess.Popen(
+                        comando,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        encoding='utf-8',
+                        errors='ignore',
+                        creationflags=flags
+                    )
+                except FileNotFoundError:
+                    print(obter_mensagem_ffmpeg_nao_encontrado())
+                    return False
+            else:
+                print(obter_mensagem_ffmpeg_nao_encontrado())
+                return False
+        else:
+            print(obter_mensagem_ffmpeg_nao_encontrado())
+            return False
+
+        # --- Correção para o Pylance: stdout/stderr são Optional; afirmar que não são None ---
+        if processo.stdout is None or processo.stderr is None:
+            # Algo deu errado na criação dos pipes; encerra com erro para evitar AttributeError
+            processo.wait()
+            print("❌ Falha ao criar pipes de progresso do FFmpeg (stdout/stderr vazios).")
+            return False
+        out_stream: IO[str] = cast(IO[str], processo.stdout)
+        err_stream: IO[str] = cast(IO[str], processo.stderr)
+        # -------------------------------------------------------------------------------------
+
+        total_us = int(duracao_total * 1_000_000)
+        ok = True
+        stderr_output = ""
+
+        with tqdm(total=total_us, desc=desc, unit='s', unit_scale=1/1_000_000,
+                  bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+                  ncols=80) as pbar:
+            # Consome stdout (progress)
+            for linha in iter(out_stream.readline, ''):
+                if 'out_time_ms' in linha:
+                    try:
+                        tempo_atual_us = int(linha.strip().split('=')[1])
+                        avanco = tempo_atual_us - pbar.n
+                        if avanco > 0:
+                            pbar.update(avanco)
+                    except (ValueError, IndexError):
+                        continue
+
+            # Finaliza processo
+            stderr_output = err_stream.read()
+            processo.wait()
+            if processo.returncode != 0:
+                ok = False
+                print(f"\n❌ Erro ao executar o comando FFmpeg (código: {processo.returncode}).")
+                if stderr_output:
+                    print(f"   Detalhes: {stderr_output.strip()}")
+            else:
+                if pbar.n < pbar.total:
+                    pbar.update(pbar.total - pbar.n)
+
+        return ok
 
     # --- Correção para o Pylance: stdout/stderr são Optional; afirmar que não são None ---
     if processo.stdout is None or processo.stderr is None:
@@ -189,7 +301,53 @@ def verificar_ffmpeg() -> bool:
                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
+        # Tenta instalar automaticamente no Windows
+        sistema = system_utils.detectar_sistema()
+        if sistema['windows']:
+            from system_utils import instalar_ffmpeg_windows
+            return instalar_ffmpeg_windows()
         return False
+
+def obter_mensagem_ffmpeg_nao_encontrado() -> str:
+    """Retorna uma mensagem detalhada sobre como instalar o FFmpeg."""
+    sistema = system_utils.detectar_sistema()
+    
+    if sistema['windows']:
+        mensagem = (
+            "❌ FFmpeg não encontrado no sistema.\n"
+            "Para instalar no Windows:\n"
+            "1. Baixe o FFmpeg em https://www.gyan.dev/ffmpeg/builds/\n"
+            "2. Extraia o conteúdo em uma pasta (ex: C:\\ffmpeg)\n"
+            "3. Adicione o caminho 'C:\\ffmpeg\\bin' ao PATH do sistema:\n"
+            "   - Abra o Painel de Controle > Sistema > Configurações Avançadas do Sistema\n"
+            "   - Clique em 'Variáveis de Ambiente'\n"
+            "   - Na seção 'Variáveis do Sistema', encontre e selecione 'Path', clique em 'Editar'\n"
+            "   - Clique em 'Novo' e adicione o caminho 'C:\\ffmpeg\\bin'\n"
+            "   - Clique em 'OK' para fechar todas as janelas\n"
+            "4. Reinicie o terminal ou o computador para aplicar as alterações"
+        )
+    elif sistema['linux']:
+        mensagem = (
+            "❌ FFmpeg não encontrado no sistema.\n"
+            "Para instalar no Linux (Ubuntu/Debian):\n"
+            "  sudo apt update && sudo apt install ffmpeg\n\n"
+            "Para outras distribuições, verifique o gerenciador de pacotes correspondente."
+        )
+    elif sistema['termux'] or sistema['android']:
+        mensagem = (
+            "❌ FFmpeg não encontrado no sistema.\n"
+            "Para instalar no Termux:\n"
+            "  pkg install ffmpeg"
+        )
+    else:  # macOS
+        mensagem = (
+            "❌ FFmpeg não encontrado no sistema.\n"
+            "Para instalar no macOS:\n"
+            "  1. Instale o Homebrew (caso ainda não tenha): /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n"
+            "  2. Instale o FFmpeg: brew install ffmpeg"
+        )
+    
+    return mensagem
 
 # ----------------------------------------------------------------------
 # Operações de áudio
@@ -280,9 +438,9 @@ def unificar_arquivos_audio_ffmpeg(lista_arquivos: List[str], caminho_saida: str
 # Geração de vídeo (imagem estática + áudio)
 # ----------------------------------------------------------------------
 
-def criar_video_a_partir_de_audio(caminho_imagem: str, caminho_audio: str, caminho_saida: str, resolucao_str: str = "640x360") -> bool:
+def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolucao_str: str = "640x360") -> bool:
     """
-    Gera um vídeo MP4 a partir de uma imagem estática e um arquivo de áudio,
+    Gera um vídeo MP4 a partir de um arquivo de áudio (com tela preta estática),
     com barra de progresso baseada na duração do áudio.
     """
     duracao = obter_duracao_com_ffprobe(caminho_audio)
