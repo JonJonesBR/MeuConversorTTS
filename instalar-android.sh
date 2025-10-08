@@ -37,7 +37,7 @@ source venv/bin/activate
 
 echo ">>> (8/8) Instalando dependências Python do projeto..."
 pip install --upgrade pip setuptools wheel
-pip install "pypdfium2[bindings]" # Instala pypdfium2 com os bindings pré-compilados
+pip install pypdfium2 # Instala a versão pré-compilada
 pip install -r requirements.txt # Instala o restante das dependências
 
 echo ""
