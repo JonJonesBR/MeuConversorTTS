@@ -10,9 +10,10 @@ echo ">>> (1/8) Atualizando pacotes do Termux..."
 pkg update -y && pkg upgrade -y
 
 echo ">>> (2/8) Instalando dependências principais..."
-# <<< CORREÇÃO APLICADA AQUI >>>
-# O pacote correto no repositório do Termux é 'libpdfium' e não 'pdfium'.
-pkg install -y python git ffmpeg poppler libpdfium
+# <<< CORREÇÃO APLICADA: libpdfium REMOVIDO >>>
+# O pacote 'libpdfium' NÃO existe no repositório oficial do Termux.
+# O pypdfium2 será instalado via pip e traz seu próprio Pdfium.
+pkg install -y python git ffmpeg poppler
 
 echo ">>> (3/8) Instalando dependências gráficas para Pillow/pdfplumber..."
 pkg install -y libjpeg-turbo zlib freetype libpng
@@ -35,7 +36,7 @@ echo ">>> (6/8) Baixando o projeto do GitHub..."
 if [ -d "MeuConversorTTS" ]; then
     echo "A pasta 'MeuConversorTTS' já existe. Pulando o download."
 else
-    git clone https://github.com/JonJonesBR/MeuConversorTTS.git
+    git clone https://github.com/JonJonesBR/MeuConversorTTS.git 
 fi
 cd MeuConversorTTS
 
@@ -46,8 +47,7 @@ source venv/bin/activate
 
 echo ">>> (8/8) Instalando dependências Python do projeto..."
 pip install --upgrade pip setuptools wheel
-# A sua lógica de instalar pypdfium2 sem os bindings está 100% correta para o Termux,
-# pois força o uso da biblioteca 'libpdfium' que instalamos no passo 2.
+# Instala pypdfium2 via pip — ele inclui seu próprio Pdfium, já que não há libpdfium no Termux
 pip install pypdfium2
 pip install -r requirements.txt # Instala o restante das dependências
 
