@@ -8,7 +8,8 @@ echo ">>> (1/7) Atualizando pacotes do Termux (forçando a atualização de conf
 pkg update -y && pkg upgrade -y -o Dpkg::Options::="--force-confnew"
 
 echo ">>> (2/7) Instalando dependências de sistema (Python, Git, FFmpeg, Poppler)..."
-pkg install -y python git ffmpeg poppler
+# Adicionamos 'portaudio' aqui para garantir que a biblioteca 'pyaudio' instale corretamente.
+pkg install -y python git ffmpeg poppler portaudio
 
 echo ">>> (3/7) Instalando dependências gráficas para a biblioteca Pillow..."
 pkg install -y libjpeg-turbo zlib freetype libpng
