@@ -442,13 +442,15 @@ def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolu
     """
     Gera um vídeo MP4 a partir de um arquivo de áudio (com tela preta estática),
     com barra de progresso baseada na duração do áudio.
+    Corrigido para evitar travamentos ao gerar vídeos curtos ou com -shortest.
     """
     duracao = obter_duracao_com_ffprobe(caminho_audio)
 
     comando = [
         _obter_caminho_executavel('ffmpeg'),
         '-y',
-        '-f', 'lavfi', '-i', f"color=c=black:s={resolucao_str}:r=1:d={duracao:.3f}",
+        '-f', 'lavfi',
+        '-i', f"color=c=black:s={resolucao_str}:r=1:d={duracao:.3f}",
         '-i', caminho_audio,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
@@ -459,4 +461,11 @@ def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolu
         '-shortest',
         caminho_saida
     ]
-    return _executar_com_progresso(comando, duracao, "🎬 Gerando Vídeo")
+
+    print("\n🎬 Gerando vídeo MP4 com tela preta...")
+    sucesso = _executar_comando_simples(comando)
+    if sucesso:
+        print(f"✅ Vídeo gerado com sucesso: {os.path.basename(caminho_saida)}")
+    else:
+        print(f"❌ Falha ao gerar o vídeo: {os.path.basename(caminho_saida)}")
+    return sucesso
