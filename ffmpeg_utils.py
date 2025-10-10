@@ -438,34 +438,30 @@ def unificar_arquivos_audio_ffmpeg(lista_arquivos: List[str], caminho_saida: str
 # Geração de vídeo (imagem estática + áudio)
 # ----------------------------------------------------------------------
 
-def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolucao_str: str = "640x360") -> bool:
+def criar_video_a_partir_de_audio(caminho_audio: str, caminho_saida: str, resolucao_str: str = "426x240") -> bool:
     """
     Gera um vídeo MP4 a partir de um arquivo de áudio (com tela preta estática),
-    com barra de progresso baseada na duração do áudio.
-    Corrigido para evitar travamentos ao gerar vídeos curtos ou com -shortest.
+    mostrando progresso e evitando travamentos.
     """
     duracao = obter_duracao_com_ffprobe(caminho_audio)
 
     comando = [
         _obter_caminho_executavel('ffmpeg'),
         '-y',
-        '-f', 'lavfi',
-        '-i', f"color=c=black:s={resolucao_str}:r=1:d={duracao:.3f}",
+        '-f', 'lavfi', '-i', f"color=c=black:s={resolucao_str}:r=2",
         '-i', caminho_audio,
+        '-t', f"{duracao:.3f}",
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'stillimage',
+        '-vf', f"scale={resolucao_str}",
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',
         '-pix_fmt', 'yuv420p',
-        '-shortest',
+        '-movflags', '+faststart',
+        '-progress', 'pipe:1',
+        '-loglevel', 'error',
         caminho_saida
     ]
 
-    print("\n🎬 Gerando vídeo MP4 com tela preta...")
-    sucesso = _executar_comando_simples(comando)
-    if sucesso:
-        print(f"✅ Vídeo gerado com sucesso: {os.path.basename(caminho_saida)}")
-    else:
-        print(f"❌ Falha ao gerar o vídeo: {os.path.basename(caminho_saida)}")
-    return sucesso
+    return _executar_com_progresso(comando, duracao, "🎬 Gerando vídeo MP4")
